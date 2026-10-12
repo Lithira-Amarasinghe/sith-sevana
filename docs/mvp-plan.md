@@ -48,20 +48,68 @@ Not a setting: adults only, no recording, no clinical notes, no store.
 - Support: complaints and reviews.
 - Settings: company rules, videos, and the doctor list.
 
-## Build order
+## Build slices
 
-Do not start a later slice until the one before it works on a phone.
+Finish one slice on a phone before starting the next. Card payments, public videos, and the doctor list stay after the core trip works. The settings table already exists. Each slice only adds the controls it needs.
 
-1. Foundation — theme, English, sign-in, roles, consent, adults-only gate, three shells.
-2. Supply — counsellor application; staff approve, reject, request information, or suspend on the phone.
-3. Diary — profile, search, availability, book, cancel, reschedule. Only one confirmed booking per slot.
-4. Money — price and rules shown before confirm; card and bank transfer as settings.
-5. Session — chat under the staff rule; audio and video; camera optional.
-6. Vault — upload, request, share one file, revoke, access history.
-7. Trust and content — one review per completed session, reminders without clinical detail, public videos, informational doctor list, complaints.
+**Done**
 
-Staff screens ship with the slice that needs them, not at the end.
+- Shells for client, counsellor, and staff, with the agreed tabs.
+- Company settings in the API, and a booking quote that keeps the cancellation window it was given.
 
-## Still needed before card payments go live
+**1. Sign-in**
 
-Which card gateway to use, and where data may be hosted. That does not block the rest of the design or slices 1–3.
+- Email sign-in, sign out, adult check, and consent.
+- The app opens the right tab set for the role.
+
+**2. Counsellor supply**
+
+- Counsellor submits an application.
+- Staff approve, reject, or ask for more information.
+- Only an approved counsellor can appear later.
+
+**3. Profile and times**
+
+- Approved counsellor sets profile, price, and weekly times.
+- Client can search and open that profile.
+
+**4. Book a slot**
+
+- Client picks a free time.
+- The screen shows price and the cancellation rule.
+- The server allows only one confirmed booking for that time.
+- Client can cancel. A confirmed booking keeps the terms it was quoted.
+
+**5. Bank payment**
+
+- Client uploads a payment slip. The booking stays "Waiting for payment".
+- Staff mark it paid or reject it. Only "mark paid" confirms the booking.
+- The card switch exists in settings and stays off.
+
+**6. The call**
+
+- Join button only inside the join window.
+- Audio and video for the two people on that booking. Camera can be off. No recording.
+
+**7. Chat**
+
+- One thread after the client picks that counsellor.
+- Send is allowed only when the current chat setting says so. The rule is shown above the message box.
+
+**8. Documents**
+
+- Client uploads a file.
+- Counsellor can ask for a file.
+- Client shares that one file, or declines. Client can revoke. The counsellor cannot see anything else.
+
+**9. After the session**
+
+- One review per completed booking.
+- Client can raise a complaint. Staff can see the complaint, not the chat or the file.
+
+**Later, same app, not required for the first usable version**
+
+- Card gateway.
+- Reminder pushes.
+- Public videos and the informational doctor list.
+- The rest of the settings screen (file size, reminder times, suspension behaviour).
