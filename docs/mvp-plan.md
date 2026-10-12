@@ -1,6 +1,6 @@
 # Sith Sevana mobile app — agreed design
 
-Status: agreed product design. No app code yet.
+Status: agreed product design. Slice 1 is started: role shells in the Flutter app, and company settings plus booking-term capture in the API.
 Date: 12 October 2026.
 
 The website at https://www.sithsevana.lk/ is a style reference only (blue `#3498DB`, green confirmation, Poppins, pill buttons, calm cards). It is not part of this product and is not connected to it. A web admin is a later product.

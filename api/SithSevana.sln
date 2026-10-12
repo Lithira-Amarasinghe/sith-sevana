@@ -1,0 +1,57 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{0B8EE01E-2EC4-4807-9DDA-0F4600DCA34F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SithSevana.Domain", "src\SithSevana.Domain\SithSevana.Domain.csproj", "{30BF87E5-1A8A-4F94-BC3A-C3F1AE0C506B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SithSevana.Application", "src\SithSevana.Application\SithSevana.Application.csproj", "{F26C55C0-D495-4AE1-BD3A-F015451E0BAF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SithSevana.Infrastructure", "src\SithSevana.Infrastructure\SithSevana.Infrastructure.csproj", "{986F6421-CB76-474E-A62A-EBC130F537C3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SithSevana.Api", "src\SithSevana.Api\SithSevana.Api.csproj", "{619A3DFD-3639-4B72-9623-0090F90D7B29}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{B882A39E-A21A-42F4-9766-29CCE72E234F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SithSevana.Application.Tests", "tests\SithSevana.Application.Tests\SithSevana.Application.Tests.csproj", "{4C4F2DDD-AA6D-406B-9E29-D27BEDDB9251}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{30BF87E5-1A8A-4F94-BC3A-C3F1AE0C506B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{30BF87E5-1A8A-4F94-BC3A-C3F1AE0C506B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{30BF87E5-1A8A-4F94-BC3A-C3F1AE0C506B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{30BF87E5-1A8A-4F94-BC3A-C3F1AE0C506B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F26C55C0-D495-4AE1-BD3A-F015451E0BAF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F26C55C0-D495-4AE1-BD3A-F015451E0BAF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F26C55C0-D495-4AE1-BD3A-F015451E0BAF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F26C55C0-D495-4AE1-BD3A-F015451E0BAF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{986F6421-CB76-474E-A62A-EBC130F537C3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{986F6421-CB76-474E-A62A-EBC130F537C3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{986F6421-CB76-474E-A62A-EBC130F537C3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{986F6421-CB76-474E-A62A-EBC130F537C3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{619A3DFD-3639-4B72-9623-0090F90D7B29}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{619A3DFD-3639-4B72-9623-0090F90D7B29}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{619A3DFD-3639-4B72-9623-0090F90D7B29}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{619A3DFD-3639-4B72-9623-0090F90D7B29}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4C4F2DDD-AA6D-406B-9E29-D27BEDDB9251}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C4F2DDD-AA6D-406B-9E29-D27BEDDB9251}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C4F2DDD-AA6D-406B-9E29-D27BEDDB9251}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C4F2DDD-AA6D-406B-9E29-D27BEDDB9251}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{30BF87E5-1A8A-4F94-BC3A-C3F1AE0C506B} = {0B8EE01E-2EC4-4807-9DDA-0F4600DCA34F}
+		{F26C55C0-D495-4AE1-BD3A-F015451E0BAF} = {0B8EE01E-2EC4-4807-9DDA-0F4600DCA34F}
+		{986F6421-CB76-474E-A62A-EBC130F537C3} = {0B8EE01E-2EC4-4807-9DDA-0F4600DCA34F}
+		{619A3DFD-3639-4B72-9623-0090F90D7B29} = {0B8EE01E-2EC4-4807-9DDA-0F4600DCA34F}
+		{4C4F2DDD-AA6D-406B-9E29-D27BEDDB9251} = {B882A39E-A21A-42F4-9766-29CCE72E234F}
+	EndGlobalSection
+EndGlobal
