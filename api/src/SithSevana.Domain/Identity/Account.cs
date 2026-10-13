@@ -12,6 +12,8 @@ public sealed class Account
     public Guid Id { get; init; } = Guid.NewGuid();
     public required string Email { get; init; }
     public required string PasswordHash { get; init; }
+    public string DisplayName { get; set; } = "";
+    public string PhoneNumber { get; set; } = "";
     public required DateOnly DateOfBirth { get; init; }
     public required AppRole Role { get; init; }
     public required DateTimeOffset ConsentAcceptedAt { get; init; }

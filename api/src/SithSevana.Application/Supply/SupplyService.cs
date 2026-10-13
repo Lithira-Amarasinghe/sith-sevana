@@ -47,6 +47,14 @@ public sealed class SupplyService
         _form.Remove(id);
     }
 
+    public Account SaveIdentity(Guid accountId, string displayName, string phoneNumber)
+    {
+        var account = CounsellorAccount(accountId);
+        account.DisplayName = displayName.Trim();
+        account.PhoneNumber = phoneNumber.Trim();
+        return account;
+    }
+
     public CounsellorApplication? Mine(Guid accountId) => _applications.FindByAccountId(accountId);
 
     public CounsellorApplication SaveDraft(Guid accountId, IReadOnlyList<ApplicationAnswer> answers)
@@ -66,6 +74,9 @@ public sealed class SupplyService
     {
         var application = Editable(accountId);
         var fields = Fields();
+        var account = CounsellorAccount(accountId);
+        if (string.IsNullOrWhiteSpace(account.DisplayName) || string.IsNullOrWhiteSpace(account.PhoneNumber))
+            throw new SupplyException("Add your name and phone number before submitting.");
         if (fields.Count == 0)
             throw new SupplyException("Staff have not added any application questions yet.");
 
@@ -83,8 +94,11 @@ public sealed class SupplyService
         return application;
     }
 
-    public IReadOnlyList<CounsellorApplication> Queue() =>
-        _applications.All().Where(application => application.Status == ApplicationStatus.Submitted).ToList();
+    public IReadOnlyList<ApplicationReview> Queue() =>
+        _applications.All()
+            .Where(application => application.Status == ApplicationStatus.Submitted)
+            .Select(Review)
+            .ToList();
 
     public CounsellorApplication Decide(Guid id, StaffDecision decision, string? note)
     {
@@ -111,11 +125,31 @@ public sealed class SupplyService
             .Select(application => new ApprovedCounsellor(application.AccountId, application.Email))
             .ToList();
 
-    private CounsellorApplication Editable(Guid accountId)
+    private ApplicationReview Review(CounsellorApplication application)
+    {
+        var account = _accounts.FindById(application.AccountId);
+        return new ApplicationReview(
+            application.Id,
+            application.Email,
+            account?.DisplayName ?? "",
+            account?.PhoneNumber ?? "",
+            account?.DateOfBirth ?? default,
+            application.Answers,
+            application.Status,
+            application.StaffNote);
+    }
+
+    private Account CounsellorAccount(Guid accountId)
     {
         var account = _accounts.FindById(accountId) ?? throw new SupplyException("Account not found.");
         if (account.Role != AppRole.Counsellor)
             throw new SupplyException("Only a counsellor can apply.");
+        return account;
+    }
+
+    private CounsellorApplication Editable(Guid accountId)
+    {
+        var account = CounsellorAccount(accountId);
 
         var application = _applications.FindByAccountId(accountId);
         if (application is null)

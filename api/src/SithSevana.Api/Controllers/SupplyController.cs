@@ -64,8 +64,24 @@ public sealed class SupplyController : ControllerBase
     public ActionResult<CounsellorApplication> Submit() =>
         Act(account => _supply.Submit(account.Id), AppRole.Counsellor);
 
+    [HttpPut("identity/me")]
+    public ActionResult<IdentityView> SaveIdentity([FromBody] IdentityBody body)
+    {
+        var denied = Only(AppRole.Counsellor);
+        if (denied is not null) return denied;
+        try
+        {
+            var account = _supply.SaveIdentity(Current()!.Id, body.DisplayName, body.PhoneNumber);
+            return new IdentityView(account.Email, account.DisplayName, account.PhoneNumber, account.DateOfBirth);
+        }
+        catch (SupplyException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpGet("applications/queue")]
-    public ActionResult<IReadOnlyList<CounsellorApplication>> Queue()
+    public ActionResult<IReadOnlyList<ApplicationReview>> Queue()
     {
         var denied = Only(AppRole.Staff);
         return denied ?? Ok(_supply.Queue());
@@ -79,7 +95,7 @@ public sealed class SupplyController : ControllerBase
     public ActionResult<IReadOnlyList<ApprovedCounsellor>> Approved() =>
         Current() is null ? Unauthorized() : Ok(_supply.Approved());
 
-    private ActionResult<CounsellorApplication> Act(Func<Account, CounsellorApplication> action, AppRole role)
+    private ActionResult<T> Act<T>(Func<Account, T> action, AppRole role) where T : class
     {
         var denied = Only(role);
         if (denied is not null) return denied;
@@ -117,6 +133,8 @@ public sealed class SupplyController : ControllerBase
     private Account? Current() => CurrentAccount.From(Request, _auth);
 }
 
+public sealed record IdentityBody(string DisplayName, string PhoneNumber);
+public sealed record IdentityView(string Email, string DisplayName, string PhoneNumber, DateOnly DateOfBirth);
 public sealed record AnswersBody(List<ApplicationAnswer> Answers);
 public sealed record FieldBody(string Label, bool Required);
 public sealed record DecisionBody(StaffDecision Decision, string? Note);

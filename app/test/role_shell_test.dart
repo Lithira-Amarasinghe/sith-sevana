@@ -78,7 +78,8 @@ void main() {
     await tester.tap(find.text("Sign in"));
     await tester.pumpAndSettle();
 
-    expect(find.text("Full name (required)"), findsOneWidget);
+    expect(find.text("Full name (required)"), findsWidgets);
+    expect(find.text("Phone number (required)"), findsWidgets);
   });
 
   test("register rejects a minor", () async {

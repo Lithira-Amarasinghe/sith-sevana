@@ -24,3 +24,13 @@ public sealed class SupplyException : Exception
 }
 
 public sealed record ApprovedCounsellor(Guid AccountId, string Email);
+
+public sealed record ApplicationReview(
+    Guid Id,
+    string Email,
+    string DisplayName,
+    string PhoneNumber,
+    DateOnly DateOfBirth,
+    IReadOnlyList<ApplicationAnswer> Answers,
+    ApplicationStatus Status,
+    string? StaffNote);

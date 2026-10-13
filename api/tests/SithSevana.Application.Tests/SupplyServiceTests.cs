@@ -12,6 +12,7 @@ public class SupplyServiceTests
     public void Required_answers_follow_the_questions_staff_set()
     {
         var (supply, counsellorId) = Start();
+        supply.SaveIdentity(counsellorId, "Nimal Perera", "0771234567");
         var name = supply.AddField("Full name", required: true);
         supply.AddField("Registration number", required: false);
 
@@ -28,6 +29,7 @@ public class SupplyServiceTests
     public void A_submitted_application_keeps_the_question_wording()
     {
         var (supply, counsellorId) = Start();
+        supply.SaveIdentity(counsellorId, "Nimal Perera", "0771234567");
         var name = supply.AddField("Full name", required: true);
         supply.SaveDraft(counsellorId, [Answer(name.Id, "Nimal")]);
         supply.Submit(counsellorId);
@@ -42,9 +44,14 @@ public class SupplyServiceTests
     public void Only_an_approved_counsellor_is_listed()
     {
         var (supply, counsellorId) = Start();
+        supply.SaveIdentity(counsellorId, "Nimal Perera", "0771234567");
         var name = supply.AddField("Full name", required: true);
         supply.SaveDraft(counsellorId, [Answer(name.Id, "Nimal")]);
         supply.Submit(counsellorId);
+        var review = supply.Queue().Single();
+        Assert.Equal("Nimal Perera", review.DisplayName);
+        Assert.Equal("0771234567", review.PhoneNumber);
+        Assert.Equal(new DateOnly(1990, 1, 1), review.DateOfBirth);
         Assert.Empty(supply.Approved());
 
         var pending = Assert.Single(supply.Queue());
@@ -58,6 +65,7 @@ public class SupplyServiceTests
     public void Request_for_information_lets_the_counsellor_submit_again()
     {
         var (supply, counsellorId) = Start();
+        supply.SaveIdentity(counsellorId, "Nimal Perera", "0771234567");
         var name = supply.AddField("Full name", required: true);
         supply.SaveDraft(counsellorId, [Answer(name.Id, "Nimal")]);
         supply.Submit(counsellorId);

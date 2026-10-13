@@ -16,6 +16,8 @@ class ApplicationScreen extends StatefulWidget {
 
 class _ApplicationScreenState extends State<ApplicationScreen> {
   List<ApplicationField> _fields = [];
+  final _name = TextEditingController();
+  final _phone = TextEditingController();
   final Map<String, TextEditingController> _answers = {};
   CounsellorApplication? _application;
   String? _error;
@@ -29,6 +31,8 @@ class _ApplicationScreenState extends State<ApplicationScreen> {
 
   @override
   void dispose() {
+    _name.dispose();
+    _phone.dispose();
     for (final controller in _answers.values) {
       controller.dispose();
     }
@@ -56,6 +60,7 @@ class _ApplicationScreenState extends State<ApplicationScreen> {
   Future<void> _submit() async {
     setState(() => _error = null);
     try {
+      await widget.supply.saveIdentity(widget.token, _name.text, _phone.text);
       final answers = [
         for (final field in _fields)
           ApplicationAnswer(fieldId: field.id, label: field.label, value: _answers[field.id]?.text ?? ""),
@@ -82,6 +87,10 @@ class _ApplicationScreenState extends State<ApplicationScreen> {
           Text(_application!.staffNote!),
         ],
         const SizedBox(height: 16),
+        TextField(controller: _name, enabled: !_locked, decoration: const InputDecoration(labelText: "Full name (required)")),
+        const SizedBox(height: 12),
+        TextField(controller: _phone, enabled: !_locked, decoration: const InputDecoration(labelText: "Phone number (required)")),
+        const SizedBox(height: 12),
         if (_fields.isEmpty)
           const Text("Staff have not added any application questions yet.")
         else
@@ -156,7 +165,10 @@ class _ReviewQueueState extends State<ReviewQueue> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(application.email, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(application.displayName.isEmpty ? application.email : application.displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(application.email),
+                  if (application.phoneNumber.isNotEmpty) Text(application.phoneNumber),
+                  if (application.dateOfBirth.isNotEmpty) Text("Date of birth: ${application.dateOfBirth}"),
                   const SizedBox(height: 8),
                   for (final answer in application.answers) Text("${answer.label}: ${answer.value}"),
                   const SizedBox(height: 12),

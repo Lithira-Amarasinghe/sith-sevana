@@ -41,6 +41,9 @@ class CounsellorApplication {
     required this.answers,
     required this.status,
     this.staffNote,
+    this.displayName = "",
+    this.phoneNumber = "",
+    this.dateOfBirth = "",
   });
 
   final String id;
@@ -48,6 +51,9 @@ class CounsellorApplication {
   final List<ApplicationAnswer> answers;
   final String status;
   final String? staffNote;
+  final String displayName;
+  final String phoneNumber;
+  final String dateOfBirth;
 
   bool get isApproved => status == "Approved";
 
@@ -59,6 +65,9 @@ class CounsellorApplication {
             .toList(),
         status: json["status"] as String,
         staffNote: json["staffNote"] as String?,
+        displayName: json["displayName"] as String? ?? "",
+        phoneNumber: json["phoneNumber"] as String? ?? "",
+        dateOfBirth: json["dateOfBirth"] as String? ?? "",
       );
 }
 
@@ -66,6 +75,7 @@ abstract class SupplyApi {
   Future<List<ApplicationField>> fields(String token);
   Future<ApplicationField> addField(String token, String label, bool required);
   Future<void> removeField(String token, String id);
+  Future<void> saveIdentity(String token, String displayName, String phoneNumber);
   Future<CounsellorApplication?> mine(String token);
   Future<CounsellorApplication> saveDraft(String token, List<ApplicationAnswer> answers);
   Future<CounsellorApplication> submit(String token);
@@ -97,6 +107,16 @@ class HttpSupplyApi implements SupplyApi {
   @override
   Future<void> removeField(String token, String id) async {
     final response = await http.delete(_uri("/api/v1/application-fields/$id"), headers: _headers(token));
+    _throwIfNeeded(response);
+  }
+
+  @override
+  Future<void> saveIdentity(String token, String displayName, String phoneNumber) async {
+    final response = await http.put(
+      _uri("/api/v1/identity/me"),
+      headers: _headers(token),
+      body: jsonEncode({"displayName": displayName, "phoneNumber": phoneNumber}),
+    );
     _throwIfNeeded(response);
   }
 
@@ -181,6 +201,9 @@ class HttpSupplyApi implements SupplyApi {
 class MemorySupplyApi implements SupplyApi {
   final List<ApplicationField> questions = [];
   final List<CounsellorApplication> items = [];
+
+  @override
+  Future<void> saveIdentity(String token, String displayName, String phoneNumber) async {}
 
   @override
   Future<List<ApplicationField>> fields(String token) async => questions;
