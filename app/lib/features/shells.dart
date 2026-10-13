@@ -124,6 +124,9 @@ class _Body extends StatelessWidget {
       return ApprovedList(token: user.token, supply: supply);
     }
     if (role == AppRole.staff && title == Strings.home) return const _StaffHome();
+    if (role == AppRole.staff && title == Strings.settings) {
+      return ApplicationFormEditor(token: user.token, supply: supply);
+    }
     if (role == AppRole.staff && title == Strings.counsellors) {
       return ReviewQueue(token: user.token, supply: supply);
     }

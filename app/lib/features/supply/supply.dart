@@ -4,18 +4,48 @@ import "package:http/http.dart" as http;
 import "package:sith_sevana/core/api.dart";
 import "package:sith_sevana/features/auth/auth.dart";
 
+class ApplicationField {
+  const ApplicationField({required this.id, required this.label, required this.required});
+
+  final String id;
+  final String label;
+  final bool required;
+
+  factory ApplicationField.fromJson(Map<String, dynamic> json) => ApplicationField(
+        id: json["id"] as String,
+        label: json["label"] as String,
+        required: json["required"] as bool,
+      );
+}
+
+class ApplicationAnswer {
+  const ApplicationAnswer({required this.fieldId, required this.label, required this.value});
+
+  final String fieldId;
+  final String label;
+  final String value;
+
+  factory ApplicationAnswer.fromJson(Map<String, dynamic> json) => ApplicationAnswer(
+        fieldId: json["fieldId"] as String,
+        label: json["label"] as String? ?? "",
+        value: json["value"] as String? ?? "",
+      );
+
+  Map<String, String> toJson() => {"fieldId": fieldId, "label": label, "value": value};
+}
+
 class CounsellorApplication {
   const CounsellorApplication({
     required this.id,
     required this.email,
-    required this.statement,
+    required this.answers,
     required this.status,
     this.staffNote,
   });
 
   final String id;
   final String email;
-  final String statement;
+  final List<ApplicationAnswer> answers;
   final String status;
   final String? staffNote;
 
@@ -24,15 +54,20 @@ class CounsellorApplication {
   factory CounsellorApplication.fromJson(Map<String, dynamic> json) => CounsellorApplication(
         id: json["id"] as String,
         email: json["email"] as String,
-        statement: json["statement"] as String? ?? "",
+        answers: ((json["answers"] as List<dynamic>?) ?? [])
+            .map((item) => ApplicationAnswer.fromJson(item as Map<String, dynamic>))
+            .toList(),
         status: json["status"] as String,
         staffNote: json["staffNote"] as String?,
       );
 }
 
 abstract class SupplyApi {
+  Future<List<ApplicationField>> fields(String token);
+  Future<ApplicationField> addField(String token, String label, bool required);
+  Future<void> removeField(String token, String id);
   Future<CounsellorApplication?> mine(String token);
-  Future<CounsellorApplication> saveDraft(String token, String statement);
+  Future<CounsellorApplication> saveDraft(String token, List<ApplicationAnswer> answers);
   Future<CounsellorApplication> submit(String token);
   Future<List<CounsellorApplication>> queue(String token);
   Future<CounsellorApplication> decide(String token, String id, String decision, String? note);
@@ -40,6 +75,31 @@ abstract class SupplyApi {
 }
 
 class HttpSupplyApi implements SupplyApi {
+  @override
+  Future<List<ApplicationField>> fields(String token) async {
+    final response = await http.get(_uri("/api/v1/application-fields"), headers: _headers(token));
+    _throwIfNeeded(response);
+    final list = jsonDecode(response.body) as List<dynamic>;
+    return list.map((item) => ApplicationField.fromJson(item as Map<String, dynamic>)).toList();
+  }
+
+  @override
+  Future<ApplicationField> addField(String token, String label, bool required) async {
+    final response = await http.post(
+      _uri("/api/v1/application-fields"),
+      headers: _headers(token),
+      body: jsonEncode({"label": label, "required": required}),
+    );
+    _throwIfNeeded(response);
+    return ApplicationField.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> removeField(String token, String id) async {
+    final response = await http.delete(_uri("/api/v1/application-fields/$id"), headers: _headers(token));
+    _throwIfNeeded(response);
+  }
+
   @override
   Future<CounsellorApplication?> mine(String token) async {
     final response = await http.get(_uri("/api/v1/applications/mine"), headers: _headers(token));
@@ -49,11 +109,11 @@ class HttpSupplyApi implements SupplyApi {
   }
 
   @override
-  Future<CounsellorApplication> saveDraft(String token, String statement) async {
+  Future<CounsellorApplication> saveDraft(String token, List<ApplicationAnswer> answers) async {
     final response = await http.put(
       _uri("/api/v1/applications/mine"),
       headers: _headers(token),
-      body: jsonEncode({"statement": statement}),
+      body: jsonEncode({"answers": answers.map((answer) => answer.toJson()).toList()}),
     );
     return _application(response);
   }
@@ -119,22 +179,33 @@ class HttpSupplyApi implements SupplyApi {
 }
 
 class MemorySupplyApi implements SupplyApi {
+  final List<ApplicationField> questions = [];
   final List<CounsellorApplication> items = [];
+
+  @override
+  Future<List<ApplicationField>> fields(String token) async => questions;
+
+  @override
+  Future<ApplicationField> addField(String token, String label, bool required) async {
+    final field = ApplicationField(id: "field-${questions.length}", label: label, required: required);
+    questions.add(field);
+    return field;
+  }
+
+  @override
+  Future<void> removeField(String token, String id) async => questions.removeWhere((field) => field.id == id);
 
   @override
   Future<CounsellorApplication?> mine(String token) async =>
       items.where((item) => item.email == token).firstOrNull;
 
   @override
-  Future<CounsellorApplication> saveDraft(String token, String statement) async {
+  Future<CounsellorApplication> saveDraft(String token, List<ApplicationAnswer> answers) async {
     final current = await mine(token);
-    if (current != null && current.status != "Draft" && current.status != "NeedsInformation") {
-      throw AuthFailure("This application can no longer be edited.");
-    }
     final next = CounsellorApplication(
       id: current?.id ?? "app-$token",
       email: token,
-      statement: statement.trim(),
+      answers: answers,
       status: current?.status ?? "Draft",
       staffNote: current?.staffNote,
     );
@@ -145,14 +216,14 @@ class MemorySupplyApi implements SupplyApi {
 
   @override
   Future<CounsellorApplication> submit(String token) async {
-    final current = await saveDraft(token, (await mine(token))?.statement ?? "");
-    if (current.statement.isEmpty) throw AuthFailure("Write a short application before submitting.");
+    final current = await mine(token);
+    if (questions.isEmpty) throw AuthFailure("Staff have not added any application questions yet.");
     final submitted = CounsellorApplication(
-      id: current.id,
-      email: current.email,
-      statement: current.statement,
+      id: current?.id ?? "app-$token",
+      email: token,
+      answers: current?.answers ?? [],
       status: "Submitted",
-      staffNote: current.staffNote,
+      staffNote: current?.staffNote,
     );
     items.removeWhere((item) => item.email == token);
     items.add(submitted);
@@ -175,7 +246,7 @@ class MemorySupplyApi implements SupplyApi {
     final next = CounsellorApplication(
       id: current.id,
       email: current.email,
-      statement: current.statement,
+      answers: current.answers,
       status: status,
       staffNote: note,
     );

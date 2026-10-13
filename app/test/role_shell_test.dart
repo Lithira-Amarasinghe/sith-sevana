@@ -53,8 +53,32 @@ void main() {
     await tester.tap(find.text("Sign in"));
     await tester.pumpAndSettle();
 
-    expect(find.text("Submit application"), findsOneWidget);
+    expect(find.text("Staff have not added any application questions yet."), findsOneWidget);
     expect(find.text("Calendar"), findsNothing);
+  });
+
+  testWidgets("a staff question shows on the counsellor application", (tester) async {
+    final supply = MemorySupplyApi();
+    await tester.pumpWidget(SithSevanaApp(auth: DevAuthGateway(), supply: supply));
+    await tester.enterText(find.byType(TextField).at(0), "staff@sithsevana.test");
+    await tester.enterText(find.byType(TextField).at(1), "Password1");
+    await tester.tap(find.text("Sign in"));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text("Settings"));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, "Question"), "Full name");
+    await tester.tap(find.text("Add question"));
+    await tester.pumpAndSettle();
+    expect(find.text("Required"), findsWidgets);
+
+    await tester.tap(find.text("Sign out"));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).at(0), "counsellor@sithsevana.test");
+    await tester.enterText(find.byType(TextField).at(1), "Password1");
+    await tester.tap(find.text("Sign in"));
+    await tester.pumpAndSettle();
+
+    expect(find.text("Full name (required)"), findsOneWidget);
   });
 
   test("register rejects a minor", () async {

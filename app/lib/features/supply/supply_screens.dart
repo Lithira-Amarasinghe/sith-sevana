@@ -15,7 +15,8 @@ class ApplicationScreen extends StatefulWidget {
 }
 
 class _ApplicationScreenState extends State<ApplicationScreen> {
-  final _statement = TextEditingController();
+  List<ApplicationField> _fields = [];
+  final Map<String, TextEditingController> _answers = {};
   CounsellorApplication? _application;
   String? _error;
   bool _loading = true;
@@ -28,15 +29,23 @@ class _ApplicationScreenState extends State<ApplicationScreen> {
 
   @override
   void dispose() {
-    _statement.dispose();
+    for (final controller in _answers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
   Future<void> _load() async {
+    final fields = await widget.supply.fields(widget.token);
     final application = await widget.supply.mine(widget.token);
     if (!mounted) return;
-    _statement.text = application?.statement ?? "";
+    for (final field in fields) {
+      _answers.putIfAbsent(field.id, TextEditingController.new);
+      final saved = application?.answers.where((answer) => answer.fieldId == field.id).firstOrNull;
+      if (saved != null) _answers[field.id]!.text = saved.value;
+    }
     setState(() {
+      _fields = fields;
       _application = application;
       _loading = false;
     });
@@ -47,7 +56,11 @@ class _ApplicationScreenState extends State<ApplicationScreen> {
   Future<void> _submit() async {
     setState(() => _error = null);
     try {
-      await widget.supply.saveDraft(widget.token, _statement.text);
+      final answers = [
+        for (final field in _fields)
+          ApplicationAnswer(fieldId: field.id, label: field.label, value: _answers[field.id]?.text ?? ""),
+      ];
+      await widget.supply.saveDraft(widget.token, answers);
       final submitted = await widget.supply.submit(widget.token);
       if (!mounted) return;
       setState(() => _application = submitted);
@@ -69,19 +82,23 @@ class _ApplicationScreenState extends State<ApplicationScreen> {
           Text(_application!.staffNote!),
         ],
         const SizedBox(height: 16),
-        TextField(
-          controller: _statement,
-          enabled: !_locked,
-          minLines: 4,
-          maxLines: 8,
-          decoration: const InputDecoration(labelText: "Your application", alignLabelWithHint: true),
-        ),
+        if (_fields.isEmpty)
+          const Text("Staff have not added any application questions yet.")
+        else
+          for (final field in _fields) ...[
+            TextField(
+              controller: _answers[field.id],
+              enabled: !_locked,
+              decoration: InputDecoration(labelText: field.required ? "${field.label} (required)" : field.label),
+            ),
+            const SizedBox(height: 12),
+          ],
         if (_error != null) ...[
           const SizedBox(height: 12),
           Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
         ],
         const SizedBox(height: 16),
-        if (!_locked) FilledButton(onPressed: _submit, child: const Text("Submit application")),
+        if (!_locked && _fields.isNotEmpty) FilledButton(onPressed: _submit, child: const Text("Submit application")),
       ],
     );
   }
@@ -141,7 +158,7 @@ class _ReviewQueueState extends State<ReviewQueue> {
                 children: [
                   Text(application.email, style: const TextStyle(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
-                  Text(application.statement),
+                  for (final answer in application.answers) Text("${answer.label}: ${answer.value}"),
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
@@ -153,6 +170,81 @@ class _ReviewQueueState extends State<ReviewQueue> {
                   ),
                 ],
               ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class ApplicationFormEditor extends StatefulWidget {
+  const ApplicationFormEditor({super.key, required this.token, required this.supply});
+
+  final String token;
+  final SupplyApi supply;
+
+  @override
+  State<ApplicationFormEditor> createState() => _ApplicationFormEditorState();
+}
+
+class _ApplicationFormEditorState extends State<ApplicationFormEditor> {
+  final _label = TextEditingController();
+  bool _required = true;
+  List<ApplicationField> _fields = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _label.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final fields = await widget.supply.fields(widget.token);
+    if (mounted) setState(() => _fields = fields);
+  }
+
+  Future<void> _add() async {
+    if (_label.text.trim().isEmpty) return;
+    await widget.supply.addField(widget.token, _label.text.trim(), _required);
+    _label.clear();
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text("Application questions", style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        const Text("Counsellors fill in these questions. Mark each one required or optional."),
+        const SizedBox(height: 12),
+        TextField(controller: _label, decoration: const InputDecoration(labelText: "Question")),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text("Required"),
+          value: _required,
+          onChanged: (value) => setState(() => _required = value),
+        ),
+        FilledButton(onPressed: _add, child: const Text("Add question")),
+        const SizedBox(height: 16),
+        for (final field in _fields)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(field.label),
+            subtitle: Text(field.required ? "Required" : "Optional"),
+            trailing: IconButton(
+              onPressed: () async {
+                await widget.supply.removeField(widget.token, field.id);
+                await _load();
+              },
+              icon: const Icon(Icons.delete_outline),
             ),
           ),
       ],

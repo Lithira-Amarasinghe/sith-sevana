@@ -65,7 +65,8 @@ Finish one slice on a phone before starting the next. Card payments, public vide
 
 **2. Counsellor supply** — done
 
-- Counsellor submits an application. Until it is approved, that account sees only the application screen.
+- Staff add the application questions and mark each one required or optional. Counsellors fill in that form. A submitted application keeps the question wording from the moment it was sent.
+- Until the application is approved, that account sees only the application screen.
 - Staff approve, reject, or ask for more information.
 - The counsellor list returns approved applications only.
 

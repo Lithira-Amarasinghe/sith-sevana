@@ -10,6 +10,14 @@ public interface IApplicationStore
     IReadOnlyList<CounsellorApplication> All();
 }
 
+public interface IApplicationFormStore
+{
+    IReadOnlyList<ApplicationField> All();
+    ApplicationField? Find(Guid id);
+    void Add(ApplicationField field);
+    void Remove(Guid id);
+}
+
 public sealed class SupplyException : Exception
 {
     public SupplyException(string message) : base(message) { }

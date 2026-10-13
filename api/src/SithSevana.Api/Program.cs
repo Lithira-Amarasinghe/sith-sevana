@@ -22,6 +22,7 @@ builder.Services.AddSingleton<ISessionStore, InMemorySessionStore>();
 builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 builder.Services.AddSingleton<AuthService>();
 builder.Services.AddSingleton<IApplicationStore, InMemoryApplicationStore>();
+builder.Services.AddSingleton<IApplicationFormStore, InMemoryApplicationFormStore>();
 builder.Services.AddSingleton<SupplyService>();
 
 var app = builder.Build();
