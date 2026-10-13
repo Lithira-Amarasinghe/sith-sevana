@@ -1,12 +1,16 @@
 import "package:flutter/material.dart";
 import "package:sith_sevana/app/role.dart";
 import "package:sith_sevana/core/theme.dart";
+import "package:sith_sevana/features/auth/auth.dart";
+import "package:sith_sevana/features/supply/supply.dart";
+import "package:sith_sevana/features/supply/supply_screens.dart";
 import "package:sith_sevana/l10n/strings.dart";
 
 class RoleShell extends StatefulWidget {
-  const RoleShell({super.key, required this.role, required this.onSignOut});
+  const RoleShell({super.key, required this.user, required this.supply, required this.onSignOut});
 
-  final AppRole role;
+  final SignedInUser user;
+  final SupplyApi supply;
   final VoidCallback onSignOut;
 
   @override
@@ -15,8 +19,31 @@ class RoleShell extends StatefulWidget {
 
 class _RoleShellState extends State<RoleShell> {
   int _index = 0;
+  CounsellorApplication? _application;
+  bool _checked = false;
 
-  List<_Tab> get _tabs => switch (widget.role) {
+  @override
+  void initState() {
+    super.initState();
+    _loadApplication();
+  }
+
+  Future<void> _loadApplication() async {
+    if (widget.user.role != AppRole.counsellor) {
+      setState(() => _checked = true);
+      return;
+    }
+    final application = await widget.supply.mine(widget.user.token);
+    if (!mounted) return;
+    setState(() {
+      _application = application;
+      _checked = true;
+    });
+  }
+
+  AppRole get _role => widget.user.role;
+
+  List<_Tab> get _tabs => switch (_role) {
         AppRole.client => const [
             _Tab(Strings.home, Icons.home_outlined),
             _Tab(Strings.counsellors, Icons.people_outline),
@@ -42,6 +69,19 @@ class _RoleShellState extends State<RoleShell> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_checked) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final waitingForApproval = _role == AppRole.counsellor && (_application == null || !_application!.isApproved);
+    if (waitingForApproval) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text("Application"),
+          actions: [TextButton(onPressed: widget.onSignOut, child: const Text("Sign out"))],
+        ),
+        body: ApplicationScreen(token: widget.user.token, supply: widget.supply, onChanged: _loadApplication),
+      );
+    }
     final tabs = _tabs;
     final title = tabs[_index].label;
     return Scaffold(
@@ -51,7 +91,7 @@ class _RoleShellState extends State<RoleShell> {
           TextButton(onPressed: widget.onSignOut, child: const Text("Sign out")),
         ],
       ),
-      body: _Body(role: widget.role, title: title),
+      body: _Body(role: _role, title: title, user: widget.user, supply: widget.supply),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (value) => setState(() => _index = value),
@@ -70,18 +110,22 @@ class _Tab {
 }
 
 class _Body extends StatelessWidget {
-  const _Body({required this.role, required this.title});
+  const _Body({required this.role, required this.title, required this.user, required this.supply});
 
   final AppRole role;
   final String title;
+  final SignedInUser user;
+  final SupplyApi supply;
 
   @override
   Widget build(BuildContext context) {
-    if (role == AppRole.client && title == Strings.home) {
-      return const _ClientHome();
+    if (role == AppRole.client && title == Strings.home) return const _ClientHome();
+    if (role == AppRole.client && title == Strings.counsellors) {
+      return ApprovedList(token: user.token, supply: supply);
     }
-    if (role == AppRole.staff && title == Strings.home) {
-      return const _StaffHome();
+    if (role == AppRole.staff && title == Strings.home) return const _StaffHome();
+    if (role == AppRole.staff && title == Strings.counsellors) {
+      return ReviewQueue(token: user.token, supply: supply);
     }
     return Center(child: Text("${Strings.empty}\n$title", textAlign: TextAlign.center));
   }
@@ -98,8 +142,6 @@ class _ClientHome extends StatelessWidget {
         Text("Find a counsellor", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600)),
         SizedBox(height: 8),
         Text("Your next session will show here.", style: TextStyle(color: AppColors.mute)),
-        SizedBox(height: 16),
-        _StatusChip(label: Strings.waiting, color: AppColors.waiting),
       ],
     );
   }
@@ -137,22 +179,3 @@ class _CountCard extends StatelessWidget {
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.label, required this.color});
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: DecoratedBox(
-        decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-        ),
-      ),
-    );
-  }
-}

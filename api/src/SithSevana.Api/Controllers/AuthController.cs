@@ -40,9 +40,10 @@ public sealed class AuthController : ControllerBase
     [HttpPost("sign-out")]
     public IActionResult SignOutSession()
     {
-        var token = ReadToken();
-        if (token is null)
+        var account = CurrentAccount.From(Request, _auth);
+        if (account is null)
             return Unauthorized();
+        var token = Request.Headers.Authorization.ToString()["Bearer ".Length..];
         _auth.SignOut(token);
         return NoContent();
     }
@@ -50,19 +51,10 @@ public sealed class AuthController : ControllerBase
     [HttpGet("me")]
     public ActionResult<AuthSession> Me()
     {
-        var token = ReadToken();
-        if (token is null)
-            return Unauthorized();
-        var account = _auth.FindByToken(token);
+        var account = CurrentAccount.From(Request, _auth);
         if (account is null)
             return Unauthorized();
+        var token = Request.Headers.Authorization.ToString()["Bearer ".Length..];
         return new AuthSession(token, account.Email, account.Role);
-    }
-
-    private string? ReadToken()
-    {
-        var header = Request.Headers.Authorization.ToString();
-        const string prefix = "Bearer ";
-        return header.StartsWith(prefix, StringComparison.Ordinal) ? header[prefix.Length..] : null;
     }
 }

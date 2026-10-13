@@ -63,11 +63,11 @@ Finish one slice on a phone before starting the next. Card payments, public vide
 - A new account is always a client. The app opens the tabs for that account's role.
 - Dev passwords are local only. Real Entra sign-in is not connected yet.
 
-**2. Counsellor supply**
+**2. Counsellor supply** — done
 
-- Counsellor submits an application.
+- Counsellor submits an application. Until it is approved, that account sees only the application screen.
 - Staff approve, reject, or ask for more information.
-- Only an approved counsellor can appear later.
+- The counsellor list returns approved applications only.
 
 **3. Profile and times**
 

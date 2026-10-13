@@ -1,4 +1,8 @@
+import "dart:convert";
+
+import "package:http/http.dart" as http;
 import "package:sith_sevana/app/role.dart";
+import "package:sith_sevana/core/api.dart";
 
 class SignedInUser {
   const SignedInUser({required this.email, required this.role, required this.token});
@@ -56,6 +60,62 @@ class DevAuthGateway implements AuthGateway {
       throw AuthFailure("Password must be at least 8 characters.");
     }
     return SignedInUser(email: email.trim(), role: AppRole.client, token: "dev");
+  }
+}
+
+class HttpAuthGateway implements AuthGateway {
+  @override
+  Future<SignedInUser> signIn(String email, String password) => _post("/api/v1/auth/login", {
+        "email": email,
+        "password": password,
+      });
+
+  @override
+  Future<SignedInUser> register({
+    required String email,
+    required String password,
+    required DateTime dateOfBirth,
+    required bool acceptedTerms,
+  }) {
+    final month = dateOfBirth.month.toString().padLeft(2, "0");
+    final day = dateOfBirth.day.toString().padLeft(2, "0");
+    return _post("/api/v1/auth/register", {
+      "email": email,
+      "password": password,
+      "dateOfBirth": "${dateOfBirth.year}-$month-$day",
+      "acceptedTerms": acceptedTerms,
+    });
+  }
+
+  Future<SignedInUser> _post(String path, Map<String, dynamic> body) async {
+    final response = await http.post(
+      Uri.parse("$apiBase$path"),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode(body),
+    );
+    if (response.statusCode >= 400) {
+      throw AuthFailure(_error(response.body));
+    }
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return SignedInUser(
+      email: json["email"] as String,
+      role: _role(json["role"] as String),
+      token: json["token"] as String,
+    );
+  }
+
+  AppRole _role(String role) => switch (role) {
+        "Staff" => AppRole.staff,
+        "Counsellor" => AppRole.counsellor,
+        _ => AppRole.client,
+      };
+
+  String _error(String body) {
+    try {
+      return (jsonDecode(body) as Map<String, dynamic>)["error"] as String? ?? "Something went wrong.";
+    } catch (_) {
+      return "Something went wrong.";
+    }
   }
 }
 
