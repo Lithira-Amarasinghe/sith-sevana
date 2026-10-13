@@ -57,10 +57,11 @@ Finish one slice on a phone before starting the next. Card payments, public vide
 - Shells for client, counsellor, and staff, with the agreed tabs.
 - Company settings in the API, and a booking quote that keeps the cancellation window it was given.
 
-**1. Sign-in**
+**1. Sign-in** — done for local accounts
 
 - Email sign-in, sign out, adult check, and consent.
-- The app opens the right tab set for the role.
+- A new account is always a client. The app opens the tabs for that account's role.
+- Dev passwords are local only. Real Entra sign-in is not connected yet.
 
 **2. Counsellor supply**
 
