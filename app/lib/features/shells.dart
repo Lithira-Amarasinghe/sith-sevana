@@ -91,7 +91,13 @@ class _RoleShellState extends State<RoleShell> {
           TextButton(onPressed: widget.onSignOut, child: const Text("Sign out")),
         ],
       ),
-      body: _Body(role: _role, title: title, user: widget.user, supply: widget.supply),
+      body: _Body(
+        role: _role,
+        title: title,
+        user: widget.user,
+        supply: widget.supply,
+        onOpenApplications: () => setState(() => _index = 1),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (value) => setState(() => _index = value),
@@ -110,12 +116,19 @@ class _Tab {
 }
 
 class _Body extends StatelessWidget {
-  const _Body({required this.role, required this.title, required this.user, required this.supply});
+  const _Body({
+    required this.role,
+    required this.title,
+    required this.user,
+    required this.supply,
+    required this.onOpenApplications,
+  });
 
   final AppRole role;
   final String title;
   final SignedInUser user;
   final SupplyApi supply;
+  final VoidCallback onOpenApplications;
 
   @override
   Widget build(BuildContext context) {
@@ -123,9 +136,11 @@ class _Body extends StatelessWidget {
     if (role == AppRole.client && title == Strings.counsellors) {
       return ApprovedList(token: user.token, supply: supply);
     }
-    if (role == AppRole.staff && title == Strings.home) return const _StaffHome();
+    if (role == AppRole.staff && title == Strings.home) {
+      return StaffHome(token: user.token, supply: supply, onOpenApplications: onOpenApplications);
+    }
     if (role == AppRole.staff && title == Strings.settings) {
-      return ApplicationFormEditor(token: user.token, supply: supply);
+      return SettingsMenu(token: user.token, supply: supply);
     }
     if (role == AppRole.staff && title == Strings.counsellors) {
       return ReviewQueue(token: user.token, supply: supply);
@@ -150,35 +165,4 @@ class _ClientHome extends StatelessWidget {
   }
 }
 
-class _StaffHome extends StatelessWidget {
-  const _StaffHome();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: const [
-        _CountCard(label: "Applications to review", count: "0"),
-        _CountCard(label: "Payments to confirm", count: "0"),
-        _CountCard(label: "Complaints to handle", count: "0"),
-      ],
-    );
-  }
-}
-
-class _CountCard extends StatelessWidget {
-  const _CountCard({required this.label, required this.count});
-  final String label;
-  final String count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        title: Text(label),
-        trailing: Text(count, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-      ),
-    );
-  }
-}
 
