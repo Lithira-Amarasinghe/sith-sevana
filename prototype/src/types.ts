@@ -16,7 +16,18 @@ export type Settings = {
   crisisLabel: string;
 };
 
-export type Slot = { weekday: number; time: string };
+export type Slot = { weekday: number; start: string; end: string };
+
+export type AccessKind = "view" | "copy";
+
+export type DocGrant = {
+  id: string;
+  counsellorId: string;
+  access: AccessKind;
+  sharedAt: string;
+  until?: string;
+  revoked?: boolean;
+};
 
 export type Counsellor = {
   id: string;
@@ -57,6 +68,7 @@ export type Booking = {
   paymentMethod?: "card" | "bank" | "free";
   slipName?: string;
   createdAt: string;
+  paidAt?: string;
   review?: { stars: number; text: string; hidden?: boolean };
 };
 
@@ -81,10 +93,11 @@ export type ClientDoc = {
   clientId: string;
   name: string;
   note: string;
-  sharedWith?: string;
-  grantDays?: number;
-  sharedAt?: string;
-  revoked?: boolean;
+  kind: string;
+  sizeLabel: string;
+  addedAt: string;
+  previewUrl?: string;
+  grants: DocGrant[];
 };
 
 export type Question = { id: string; text: string; required: boolean };

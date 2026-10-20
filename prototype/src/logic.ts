@@ -1,4 +1,4 @@
-import type { Booking, ChatRule, Counsellor, Settings, Thread } from "./types";
+import type { AccessKind, Booking, ChatRule, ClientDoc, Counsellor, DocGrant, Settings, Thread } from "./types";
 
 export const CLIENT_ID = "sanduni";
 
@@ -78,6 +78,32 @@ export function hoursUntil(iso: string, now = new Date()) {
 
 export type Opening = { slot: string; startsAt: string };
 
+export function minutesOf(time: string) {
+  const [hour, minute] = time.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+export function timesInWindow(start: string, end: string, minutes: number) {
+  const from = minutesOf(start);
+  const to = minutesOf(end);
+  const times: string[] = [];
+  for (let cursor = from; cursor + minutes <= to; cursor += minutes) {
+    const hour = Math.floor(cursor / 60);
+    const minute = cursor % 60;
+    times.push(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
+  }
+  return times;
+}
+
+export function nextWeekday(weekday: number, hours: number, minutes: number, now = new Date()) {
+  const date = new Date(now);
+  date.setHours(hours, minutes, 0, 0);
+  let delta = (weekday + 7 - date.getDay()) % 7;
+  if (date.getTime() + delta * 86_400_000 < now.getTime() + 3 * 3_600_000) delta += 7;
+  date.setDate(date.getDate() + delta);
+  return date.toISOString();
+}
+
 export function openings(counsellor: Counsellor, bookings: Booking[], settings: Settings, now = new Date()): Opening[] {
   if (counsellor.suspended || counsellor.pendingSetup) return [];
   const found: Opening[] = [];
@@ -85,21 +111,23 @@ export function openings(counsellor: Counsellor, bookings: Booking[], settings: 
     const date = new Date(now);
     date.setHours(0, 0, 0, 0);
     date.setDate(date.getDate() + day);
-    for (const slot of counsellor.slots) {
-      if (slot.weekday !== date.getDay()) continue;
-      const [hour, minute] = slot.time.split(":").map(Number);
-      const starts = new Date(date);
-      starts.setHours(hour, minute, 0, 0);
-      if (starts.getTime() < now.getTime() + settings.bookingNoticeHours * 3_600_000) continue;
-      const taken = bookings.some((booking) => {
-        if (booking.counsellorId !== counsellor.id || booking.status === "cancelled" || booking.status === "refunded") {
-          return false;
-        }
-        return Math.abs(new Date(booking.startsAt).getTime() - starts.getTime()) < 60_000;
-      });
-      if (taken) continue;
-      const iso = starts.toISOString();
-      found.push({ slot: `${counsellor.id}@${iso}`, startsAt: iso });
+    for (const window of counsellor.slots) {
+      if (window.weekday !== date.getDay()) continue;
+      for (const time of timesInWindow(window.start, window.end, settings.sessionMinutes)) {
+        const [hour, minute] = time.split(":").map(Number);
+        const starts = new Date(date);
+        starts.setHours(hour, minute, 0, 0);
+        if (starts.getTime() < now.getTime() + settings.bookingNoticeHours * 3_600_000) continue;
+        const taken = bookings.some((booking) => {
+          if (booking.counsellorId !== counsellor.id || booking.status === "cancelled" || booking.status === "refunded") {
+            return false;
+          }
+          return Math.abs(new Date(booking.startsAt).getTime() - starts.getTime()) < 60_000;
+        });
+        if (taken) continue;
+        const iso = starts.toISOString();
+        found.push({ slot: `${counsellor.id}@${iso}`, startsAt: iso });
+      }
     }
   }
   return found;
@@ -142,15 +170,36 @@ export function threadIdFor(counsellorId: string, clientId = CLIENT_ID) {
   return `thread-${clientId}-${counsellorId}`;
 }
 
-export function grantUntil(sharedAt: string, grantDays: number) {
-  const date = new Date(sharedAt);
-  date.setDate(date.getDate() + grantDays);
-  return date;
+export function grantIsActive(grant: DocGrant, now = new Date()) {
+  if (grant.revoked) return false;
+  if (!grant.until) return true;
+  return new Date(grant.until).getTime() > now.getTime();
 }
 
-export function documentVisibleToCounsellor(doc: { sharedWith?: string; revoked?: boolean; sharedAt?: string; grantDays?: number }, counsellorId: string, now = new Date()) {
-  if (doc.revoked || doc.sharedWith !== counsellorId || !doc.sharedAt || !doc.grantDays) return false;
-  return grantUntil(doc.sharedAt, doc.grantDays).getTime() > now.getTime();
+export function activeGrants(doc: ClientDoc, now = new Date()) {
+  return doc.grants.filter((grant) => grantIsActive(grant, now));
+}
+
+export function documentVisibleToCounsellor(doc: ClientDoc, counsellorId: string, now = new Date()) {
+  return doc.grants.some((grant) => grant.counsellorId === counsellorId && grantIsActive(grant, now));
+}
+
+export function accessLabel(access: AccessKind) {
+  return access === "copy" ? "May save a copy" : "View in the app";
+}
+
+export function fileKind(name: string) {
+  const extension = name.split(".").pop()?.toLowerCase() ?? "";
+  if (extension === "pdf") return "PDF";
+  if (["png", "jpg", "jpeg", "webp", "gif"].includes(extension)) return "Image";
+  if (["doc", "docx"].includes(extension)) return "Document";
+  return extension ? extension.toUpperCase() : "File";
+}
+
+export function fileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function statusLabel(status: Booking["status"]) {

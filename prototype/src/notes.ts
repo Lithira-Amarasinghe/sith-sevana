@@ -165,11 +165,11 @@ export const notes: Record<ScreenId, { title: string; intent: string; ask: strin
   },
   documents: {
     title: "Documents",
-    intent: "A file stays private until the client shares that exact file. Revoke stops future access.",
+    intent: "A file stays in the client's vault. They can share that same file with more than one counsellor, and end each person's access on its own.",
     ask: [
-      "Is 30 days the right starting grant length?",
-      "Should revoke warn that a copy already saved cannot be pulled back?",
-      "May a counsellor ask for a file, with the client free to decline?",
+      "Are the two access types right: view in the app, or allow a saved copy?",
+      "Should the length be the company default, until the next session, or until the client revokes it?",
+      "Ending a saved-copy grant cannot pull back a copy already kept. Is that warning clear enough?",
     ],
   },
   profile: {
@@ -179,8 +179,8 @@ export const notes: Record<ScreenId, { title: string; intent: string; ask: strin
   },
   wallet: {
     title: "Payments",
-    intent: "A receipt for each booking, using the fee that was agreed at the time.",
-    ask: ["Do clients need a downloadable receipt in version 1?"],
+    intent: "A receipt shows who the session is with, when it is, how it was paid, and when the payment was confirmed.",
+    ask: ["Is the paid time the card success, or the moment staff mark a bank slip paid?"],
   },
   today: {
     title: "Counsellor today",
@@ -189,10 +189,10 @@ export const notes: Record<ScreenId, { title: string; intent: string; ask: strin
   },
   calendar: {
     title: "Hours",
-    intent: "Weekly hours the counsellor turns on. Clients only see those openings.",
+    intent: "The counsellor sets working blocks. The app splits each block into sessions of the company length. Booked times are hidden from clients.",
     ask: [
-      "Are repeating weekly hours enough for version 1?",
-      "Do you need exceptions for leave and public holidays now, or later?",
+      "Are repeating weekly blocks enough for version 1?",
+      "Do you need leave and public holidays now, or later?",
     ],
   },
   clients: {

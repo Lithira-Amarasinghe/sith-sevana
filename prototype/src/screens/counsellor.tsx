@@ -1,12 +1,10 @@
 import { useState, type ReactNode } from "react";
-import { formatWhen, inSessionWindow, lkr, weekdayName } from "../logic";
+import { accessLabel, formatWhen, grantIsActive, inSessionWindow, lkr, minutesOf, timesInWindow, weekdayName } from "../logic";
 import { useNav } from "../nav";
 import { useStore } from "../store";
 import type { Slot } from "../types";
 import { Area, Avatar, Button, Empty, Field, Icon, Pill } from "../ui";
 import { MessagesScreen } from "./client";
-
-const HOURS = ["09:00", "09:30", "10:00", "11:00", "13:00", "14:00", "15:00", "16:30", "17:30", "18:00"];
 
 function Screen({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   return (
@@ -73,27 +71,46 @@ export function TodayScreen() {
   );
 }
 
+const CLOCK = Array.from({ length: 25 }, (_, index) => {
+  const hour = 8 + Math.floor(index / 2);
+  const minute = index % 2 === 0 ? "00" : "30";
+  return `${String(hour).padStart(2, "0")}:${minute}`;
+}).filter((time) => minutesOf(time) <= 20 * 60);
+
 export function CalendarScreen() {
   const { data, setSlots } = useStore();
   const counsellor = data.counsellors.find((item) => item.id === "nadeesha");
   const [day, setDay] = useState(new Date().getDay());
+  const [start, setStart] = useState("09:00");
+  const [end, setEnd] = useState("12:00");
+  const [warning, setWarning] = useState<string | null>(null);
   if (!counsellor) return null;
   const person = counsellor;
-  const selected = person.slots.filter((slot) => slot.weekday === day).map((slot) => slot.time);
+  const windows = person.slots.filter((slot) => slot.weekday === day);
+  const bookable = windows.flatMap((window) => timesInWindow(window.start, window.end, data.settings.sessionMinutes));
 
-  function toggle(time: string) {
-    const exists = person.slots.some((slot) => slot.weekday === day && slot.time === time);
-    const slots: Slot[] = exists
-      ? person.slots.filter((slot) => !(slot.weekday === day && slot.time === time))
-      : [...person.slots, { weekday: day, time }];
+  function addWindow() {
+    if (minutesOf(end) <= minutesOf(start)) {
+      setWarning("The end needs to be after the start.");
+      return;
+    }
+    const overlap = windows.some((window) => minutesOf(start) < minutesOf(window.end) && minutesOf(end) > minutesOf(window.start));
+    if (overlap) {
+      setWarning("That range overlaps hours already on this day.");
+      return;
+    }
+    const slots: Slot[] = [...person.slots, { weekday: day, start, end }];
     setSlots(person.id, slots);
+    setWarning(null);
   }
 
   return (
     <Screen>
       <div className="pad">
         <h1 className="display">Hours</h1>
-        <p className="lede">Clients only see the hours you leave on. Booked times stay reserved.</p>
+        <p className="lede">
+          Set the blocks of time you can work. Clients see separate {data.settings.sessionMinutes}-minute sessions inside those blocks. A time that is already booked disappears from their list.
+        </p>
         <div className="chips">
           {[1, 2, 3, 4, 5, 6, 0].map((value) => (
             <button key={value} className={value === day ? "chip on" : "chip"} onClick={() => setDay(value)}>
@@ -102,13 +119,49 @@ export function CalendarScreen() {
           ))}
         </div>
         <h3>{weekdayName(day)}</h3>
-        <div className="chips">
-          {HOURS.map((time) => (
-            <button key={time} className={selected.includes(time) ? "chip on" : "chip"} onClick={() => toggle(time)}>
-              {time}
-            </button>
+        {windows.length === 0 && <p className="quiet">No hours on this day. Clients cannot book it.</p>}
+        <div className="stack">
+          {windows.map((window) => (
+            <article key={`${window.start}-${window.end}`} className="paper">
+              <strong>
+                {window.start} – {window.end}
+              </strong>
+              <p className="fine">{timesInWindow(window.start, window.end, data.settings.sessionMinutes).join(", ") || "Too short for one session."}</p>
+              <Button
+                tone="ghost"
+                onClick={() =>
+                  setSlots(
+                    person.id,
+                    person.slots.filter((slot) => !(slot.weekday === day && slot.start === window.start && slot.end === window.end)),
+                  )
+                }
+              >
+                Remove
+              </Button>
+            </article>
           ))}
         </div>
+        <div className="window-add">
+          <label>
+            From
+            <select value={start} onChange={(event) => setStart(event.target.value)}>
+              {CLOCK.map((time) => (
+                <option key={time}>{time}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            To
+            <select value={end} onChange={(event) => setEnd(event.target.value)}>
+              {CLOCK.map((time) => (
+                <option key={time}>{time}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {warning && <p className="error">{warning}</p>}
+        <Button onClick={addWindow}>Add these hours</Button>
+        {bookable.length > 0 && <p className="fine">Clients can book {bookable.join(", ")} on {weekdayName(day)}s, unless a session is already held.</p>}
       </div>
     </Screen>
   );
@@ -144,9 +197,10 @@ export function ClientRecord({ clientId }: { clientId: string }) {
   const { pop, push } = useNav();
   const name = data.bookings.find((booking) => booking.clientId === clientId)?.clientName ?? "Client";
   const sessions = data.bookings.filter((booking) => booking.clientId === clientId && booking.counsellorId === "nadeesha");
-  const files = data.documents.filter(
-    (doc) => doc.clientId === clientId && doc.sharedWith === "nadeesha" && !doc.revoked,
-  );
+  const files = data.documents.flatMap((doc) => {
+    const grant = doc.grants.find((item) => doc.clientId === clientId && item.counsellorId === "nadeesha" && grantIsActive(item));
+    return grant ? [{ doc, grant }] : [];
+  });
 
   return (
     <div className="screen-scroll pad">
@@ -161,10 +215,17 @@ export function ClientRecord({ clientId }: { clientId: string }) {
         </p>
       ))}
       <h3>Files shared with you</h3>
-      {files.length === 0 && <p className="quiet">Nothing shared. You cannot see the rest of their vault.</p>}
-      {files.map((doc) => (
+      {files.length === 0 && <p className="quiet">Nothing shared with you. You cannot see the rest of their vault.</p>}
+      {files.map(({ doc, grant }) => (
         <article key={doc.id} className="paper">
           <strong>{doc.name}</strong>
+          <p>
+            {doc.kind} · {doc.sizeLabel}
+          </p>
+          <p className="fine">
+            {accessLabel(grant.access)}
+            {grant.until ? ` · until ${formatWhen(grant.until)}` : " · until they end it"}
+          </p>
         </article>
       ))}
       <Button

@@ -1,4 +1,4 @@
-import { at } from "./logic";
+import { at, nextWeekday } from "./logic";
 import type { DataState } from "./types";
 
 export function createSeed(): DataState {
@@ -41,9 +41,8 @@ export function createSeed(): DataState {
         suspended: false,
         pendingSetup: false,
         slots: [1, 2, 3, 4, 5].flatMap((weekday) => [
-          { weekday, time: "09:30" },
-          { weekday, time: "11:00" },
-          { weekday, time: "16:30" },
+          { weekday, start: "09:00", end: "12:00" },
+          ...(weekday % 2 === 1 ? [{ weekday, start: "16:00", end: "18:00" }] : []),
         ]),
       },
       {
@@ -61,9 +60,8 @@ export function createSeed(): DataState {
         suspended: false,
         pendingSetup: false,
         slots: [2, 4].flatMap((weekday) => [
-          { weekday, time: "10:00" },
-          { weekday, time: "14:00" },
-          { weekday, time: "18:00" },
+          { weekday, start: "10:00", end: "13:00" },
+          { weekday, start: "17:00", end: "19:00" },
         ]),
       },
       {
@@ -80,10 +78,7 @@ export function createSeed(): DataState {
         hue: 24,
         suspended: false,
         pendingSetup: false,
-        slots: [3, 6].flatMap((weekday) => [
-          { weekday, time: "09:00" },
-          { weekday, time: "13:00" },
-        ]),
+        slots: [3, 6].map((weekday) => ({ weekday, start: "09:00", end: "12:00" })),
       },
       {
         id: "tharushi",
@@ -99,10 +94,7 @@ export function createSeed(): DataState {
         hue: 205,
         suspended: false,
         pendingSetup: false,
-        slots: [1, 3, 5].flatMap((weekday) => [
-          { weekday, time: "15:00" },
-          { weekday, time: "17:30" },
-        ]),
+        slots: [1, 3, 5].map((weekday) => ({ weekday, start: "15:00", end: "18:00" })),
       },
     ],
     applications: [
@@ -138,19 +130,21 @@ export function createSeed(): DataState {
         status: "confirmed",
         paymentMethod: "card",
         createdAt: at(-2, 9, 0),
+        paidAt: at(-2, 9, 0),
       },
       {
         id: "b-next",
         counsellorId: "kasun",
         clientId: "sanduni",
         clientName: "Sanduni Wickramasinghe",
-        startsAt: at(3, 14, 0),
+        startsAt: nextWeekday(2, 11, 0),
         minutes: 60,
         priceLkr: 4000,
         cancelHours: 12,
         status: "confirmed",
         paymentMethod: "bank",
         createdAt: at(-1, 18, 10),
+        paidAt: at(-1, 19, 5),
       },
       {
         id: "b-past",
@@ -164,6 +158,7 @@ export function createSeed(): DataState {
         status: "completed",
         paymentMethod: "card",
         createdAt: at(-12, 15, 0),
+        paidAt: at(-12, 15, 2),
         review: {
           stars: 5,
           text: "I felt listened to, and I left with one clear thing to try this week.",
@@ -174,7 +169,7 @@ export function createSeed(): DataState {
         counsellorId: "nadeesha",
         clientId: "isuru",
         clientName: "Isuru Perera",
-        startsAt: at(1, 11, 0),
+        startsAt: nextWeekday(3, 10, 0),
         minutes: 60,
         priceLkr: 4500,
         cancelHours: 12,
@@ -188,13 +183,14 @@ export function createSeed(): DataState {
         counsellorId: "tharushi",
         clientId: "dilani",
         clientName: "Dilani Fernando",
-        startsAt: at(2, 15, 0),
+        startsAt: nextWeekday(1, 16, 0),
         minutes: 60,
         priceLkr: 3500,
         cancelHours: 12,
         status: "refund-review",
         paymentMethod: "card",
         createdAt: at(-1, 12, 0),
+        paidAt: at(-1, 12, 4),
       },
     ],
     threads: [
@@ -226,15 +222,52 @@ export function createSeed(): DataState {
         clientId: "sanduni",
         name: "Sleep notes.pdf",
         note: "Two weeks of notes you wrote for yourself.",
-        sharedWith: "nadeesha",
-        grantDays: 30,
-        sharedAt: at(-6, 19, 0),
+        kind: "PDF",
+        sizeLabel: "240 KB",
+        addedAt: at(-10, 21, 0),
+        grants: [
+          {
+            id: "g-sleep-nadeesha",
+            counsellorId: "nadeesha",
+            access: "view",
+            sharedAt: at(-6, 19, 0),
+            until: at(24, 19, 0),
+          },
+        ],
+      },
+      {
+        id: "d-referral",
+        clientId: "sanduni",
+        name: "Referral letter.pdf",
+        note: "Shared on different terms with two counsellors.",
+        kind: "PDF",
+        sizeLabel: "86 KB",
+        addedAt: at(-4, 11, 30),
+        grants: [
+          {
+            id: "g-referral-nadeesha",
+            counsellorId: "nadeesha",
+            access: "copy",
+            sharedAt: at(-4, 11, 40),
+          },
+          {
+            id: "g-referral-kasun",
+            counsellorId: "kasun",
+            access: "view",
+            sharedAt: at(-3, 9, 0),
+            until: at(27, 9, 0),
+          },
+        ],
       },
       {
         id: "d-letter",
         clientId: "sanduni",
         name: "Work letter.pdf",
         note: "Private. Not shared with anyone.",
+        kind: "PDF",
+        sizeLabel: "120 KB",
+        addedAt: at(-1, 16, 0),
+        grants: [],
       },
     ],
     complaints: [

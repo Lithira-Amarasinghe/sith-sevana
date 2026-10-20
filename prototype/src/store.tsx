@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from "react";
 import { createSeed } from "./data";
 import { CLIENT_ID, quote, threadIdFor } from "./logic";
-import type { Application, Booking, ChatRule, DataState, Question, Role, SessionUser, Slot } from "./types";
+import type { AccessKind, Application, Booking, ChatRule, DataState, DocGrant, Question, Role, SessionUser, Slot } from "./types";
 
 type Action =
   | { type: "reset" }
@@ -22,8 +22,8 @@ type Action =
   | { type: "ensure-thread"; counsellorId: string; clientId: string; clientName: string; rule: ChatRule }
   | { type: "message"; threadId: string; from: "client" | "counsellor"; text: string }
   | { type: "add-doc"; doc: DataState["documents"][number] }
-  | { type: "share"; docId: string; counsellorId: string; grantDays: number }
-  | { type: "revoke"; docId: string }
+  | { type: "share"; docId: string; grants: DocGrant[] }
+  | { type: "revoke"; docId: string; grantId: string }
   | { type: "slots"; counsellorId: string; slots: Slot[] }
   | { type: "price"; counsellorId: string; priceLkr: number }
   | { type: "suspend"; counsellorId: string }
@@ -52,9 +52,9 @@ type Store = {
   closeComplaint: (complaintId: string) => void;
   ensureThread: (counsellorId: string, clientId?: string, clientName?: string) => string;
   sendMessage: (threadId: string, from: "client" | "counsellor", text: string) => void;
-  addDocument: (name: string) => void;
-  shareDocument: (docId: string, counsellorId: string) => void;
-  revokeDocument: (docId: string) => void;
+  addDocument: (file: { name: string; note: string; sizeLabel: string; kind: string; previewUrl?: string }) => void;
+  shareDocument: (docId: string, counsellorIds: string[], access: AccessKind, length: "revoke" | "days" | "session") => void;
+  revokeDocument: (docId: string, grantId: string) => void;
   setSlots: (counsellorId: string, slots: Slot[]) => void;
   setPrice: (counsellorId: string, priceLkr: number) => void;
   suspend: (counsellorId: string) => void;
@@ -95,7 +95,7 @@ function reducer(state: DataState, action: Action): DataState {
       return {
         ...state,
         bookings: state.bookings.map((booking) =>
-          booking.id === action.bookingId ? { ...booking, status: "confirmed" } : booking,
+          booking.id === action.bookingId ? { ...booking, status: "confirmed", paidAt: new Date().toISOString() } : booking,
         ),
       };
     case "reject-slip":
@@ -175,22 +175,23 @@ function reducer(state: DataState, action: Action): DataState {
     case "share":
       return {
         ...state,
-        documents: state.documents.map((doc) =>
-          doc.id === action.docId
-            ? {
-                ...doc,
-                sharedWith: action.counsellorId,
-                grantDays: action.grantDays,
-                sharedAt: new Date().toISOString(),
-                revoked: false,
-              }
-            : doc,
-        ),
+        documents: state.documents.map((doc) => {
+          if (doc.id !== action.docId) return doc;
+          const replaced = new Set(action.grants.map((grant) => grant.counsellorId));
+          return {
+            ...doc,
+            grants: [...doc.grants.filter((grant) => !replaced.has(grant.counsellorId)), ...action.grants],
+          };
+        }),
       };
     case "revoke":
       return {
         ...state,
-        documents: state.documents.map((doc) => (doc.id === action.docId ? { ...doc, revoked: true } : doc)),
+        documents: state.documents.map((doc) =>
+          doc.id === action.docId
+            ? { ...doc, grants: doc.grants.map((grant) => (grant.id === action.grantId ? { ...grant, revoked: true } : grant)) }
+            : doc,
+        ),
       };
     case "slots":
       return {
@@ -331,6 +332,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             paymentMethod: method,
             slipName,
             createdAt: new Date().toISOString(),
+            paidAt: method === "bank" ? undefined : new Date().toISOString(),
           },
         });
         dispatch({
@@ -405,18 +407,72 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return threadIdFor(counsellorId, clientId);
       },
       sendMessage: (threadId, from, text) => dispatch({ type: "message", threadId, from, text }),
-      addDocument: (name) =>
+      addDocument: (file) =>
         dispatch({
           type: "add-doc",
-          doc: { id: `d-${crypto.randomUUID()}`, clientId: CLIENT_ID, name, note: "Added just now. Not shared." },
+          doc: {
+            id: `d-${crypto.randomUUID()}`,
+            clientId: CLIENT_ID,
+            name: file.name,
+            note: file.note || "Added from this device. Not shared yet.",
+            kind: file.kind,
+            sizeLabel: file.sizeLabel,
+            addedAt: new Date().toISOString(),
+            previewUrl: file.previewUrl,
+            grants: [],
+          },
         }),
-      shareDocument: (docId, counsellorId) => {
-        dispatch({ type: "share", docId, counsellorId, grantDays: data.settings.grantDays });
-        dispatch({ type: "toast", text: "File shared" });
+      shareDocument: (docId, counsellorIds, access, length) => {
+        const now = new Date();
+        const grants: DocGrant[] = [];
+        const skipped: string[] = [];
+        for (const counsellorId of counsellorIds) {
+          let until: string | undefined;
+          if (length === "days") {
+            const end = new Date(now);
+            end.setDate(end.getDate() + data.settings.grantDays);
+            until = end.toISOString();
+          } else if (length === "session") {
+            const next = data.bookings
+              .filter(
+                (booking) =>
+                  booking.clientId === CLIENT_ID &&
+                  booking.counsellorId === counsellorId &&
+                  (booking.status === "confirmed" || booking.status === "awaiting-payment") &&
+                  new Date(booking.startsAt).getTime() > now.getTime(),
+              )
+              .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())[0];
+            if (!next) {
+              skipped.push(counsellorId);
+              continue;
+            }
+            until = new Date(new Date(next.startsAt).getTime() + next.minutes * 60_000).toISOString();
+          }
+          grants.push({
+            id: `g-${crypto.randomUUID()}`,
+            counsellorId,
+            access,
+            sharedAt: now.toISOString(),
+            until,
+          });
+        }
+        if (grants.length > 0) dispatch({ type: "share", docId, grants });
+        const skippedNames = skipped
+          .map((id) => data.counsellors.find((counsellor) => counsellor.id === id)?.name)
+          .filter(Boolean);
+        dispatch({
+          type: "toast",
+          text:
+            grants.length === 0
+              ? "No upcoming session to attach that access to."
+              : skippedNames.length > 0
+                ? `Shared. No upcoming session for ${skippedNames.join(", ")}.`
+                : "Access updated",
+        });
       },
-      revokeDocument: (docId) => {
-        dispatch({ type: "revoke", docId });
-        dispatch({ type: "toast", text: "Access revoked for future views" });
+      revokeDocument: (docId, grantId) => {
+        dispatch({ type: "revoke", docId, grantId });
+        dispatch({ type: "toast", text: "Access ended for that counsellor" });
       },
       setSlots: (counsellorId, slots) => dispatch({ type: "slots", counsellorId, slots }),
       setPrice: (counsellorId, priceLkr) => dispatch({ type: "price", counsellorId, priceLkr }),

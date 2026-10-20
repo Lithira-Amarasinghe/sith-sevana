@@ -1,12 +1,15 @@
 import { useState, type ReactNode } from "react";
 import {
   CLIENT_ID,
+  accessLabel,
+  activeGrants,
   chatRuleCopy,
   clientCanSend,
-  documentVisibleToCounsellor,
+  fileKind,
+  fileSize,
+  formatDay,
   formatTime,
   formatWhen,
-  grantUntil,
   greeting,
   hoursUntil,
   inSessionWindow,
@@ -14,10 +17,11 @@ import {
   openings,
   quote,
   statusLabel,
+  type Opening,
 } from "../logic";
 import { useNav } from "../nav";
 import { useStore } from "../store";
-import type { Booking } from "../types";
+import type { AccessKind, Booking } from "../types";
 import { Area, Avatar, Button, Empty, Field, Icon, Pill, Stars } from "../ui";
 
 function useCounsellor(id?: string) {
@@ -96,7 +100,7 @@ export function ClientHome() {
           <button className="mini" onClick={() => push({ id: "documents" })}>
             <Icon name="file" />
             <strong>Documents</strong>
-            <span>{data.documents.filter((doc) => doc.clientId === CLIENT_ID && doc.sharedWith && !doc.revoked).length} shared</span>
+            <span>{data.documents.filter((doc) => doc.clientId === CLIENT_ID && activeGrants(doc).length > 0).length} shared</span>
           </button>
         </div>
         {upcoming.length > 1 && (
@@ -209,7 +213,7 @@ export function CounsellorProfile({ id }: { id: string }) {
   const { data } = useStore();
   const { ensureThread } = useStore();
   const { pop, push } = useNav();
-  const slots = counsellor ? openings(counsellor, data.bookings, data.settings).slice(0, 6) : [];
+  const slots = counsellor ? openings(counsellor, data.bookings, data.settings) : [];
   if (!counsellor) return <Empty title="Not available" body="This counsellor is not on the panel." />;
   const price = quote(counsellor, data.bookings, data.settings);
 
@@ -277,15 +281,13 @@ export function CounsellorProfile({ id }: { id: string }) {
             <strong>{price.cancelHours}h</strong>
           </div>
         </div>
-        <h3>Next openings</h3>
-        {slots.length === 0 && <p className="quiet">No bookable hours yet.</p>}
-        <div className="chips">
-          {slots.map((slot) => (
-            <button key={slot.startsAt} className="chip" onClick={() => push({ id: "book", counsellorId: counsellor.id, slot: slot.startsAt })}>
-              {formatWhen(slot.startsAt)}
-            </button>
-          ))}
-        </div>
+        <h3>Open times</h3>
+        <p className="fine">Each time is one {price.minutes}-minute session inside the hours they keep free. A time already booked does not appear.</p>
+        {slots.length === 0 && <p className="quiet">No bookable hours in the next two weeks.</p>}
+        <OpeningDiary
+          items={slots}
+          onPick={(startsAt) => push({ id: "book", counsellorId: counsellor.id, slot: startsAt })}
+        />
       </div>
     </Screen>
   );
@@ -339,13 +341,8 @@ export function BookScreen({ counsellorId, slot }: { counsellorId: string; slot?
         <p className="lede">
           {counsellor.name} · {price.minutes} minutes
         </p>
-        <div className="chips">
-          {choices.slice(0, 8).map((item) => (
-            <button key={item.startsAt} className={item.startsAt === selected ? "chip on" : "chip"} onClick={() => setSelected(item.startsAt)}>
-              {formatWhen(item.startsAt)}
-            </button>
-          ))}
-        </div>
+        {choices.length === 0 && <p className="quiet">No open times in the next two weeks.</p>}
+        <OpeningDiary items={choices} selected={selected} onPick={setSelected} />
         <div className="terms">
           <p>
             <strong>{price.free ? "No fee for this first session." : lkr(price.priceLkr ?? 0)}</strong>
@@ -708,83 +705,222 @@ export function ChatScreen({ threadId }: { threadId: string }) {
   );
 }
 
+function OpeningDiary({ items, selected, onPick }: { items: Opening[]; selected?: string; onPick: (startsAt: string) => void }) {
+  const groups = new Map<string, Opening[]>();
+  for (const item of items) {
+    const key = formatDay(item.startsAt);
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+  const days = [...groups.entries()].slice(0, 6);
+  if (days.length === 0) return null;
+  return (
+    <div className="diary">
+      {days.map(([label, day]) => (
+        <section key={label}>
+          <h3>{label}</h3>
+          <div className="chips">
+            {day.map((item) => (
+              <button key={item.startsAt} className={item.startsAt === selected ? "chip on" : "chip"} onClick={() => onPick(item.startsAt)}>
+                {formatTime(item.startsAt)}
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 export function DocumentsScreen() {
   const { data, addDocument, shareDocument, revokeDocument } = useStore();
   const { pop } = useNav();
-  const [sharing, setSharing] = useState<string | null>(null);
-  const [name, setName] = useState("Letter.pdf");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [access, setAccess] = useState<AccessKind>("view");
+  const [length, setLength] = useState<"revoke" | "days" | "session">("days");
+  const [upload, setUpload] = useState<{ name: string; sizeLabel: string; kind: string; previewUrl?: string } | null>(null);
+  const [note, setNote] = useState("");
   const docs = data.documents.filter((doc) => doc.clientId === CLIENT_ID);
+  const open = docs.find((doc) => doc.id === openId) ?? null;
   const partners = data.counsellors.filter((counsellor) =>
     data.bookings.some((booking) => booking.clientId === CLIENT_ID && booking.counsellorId === counsellor.id) ||
     data.threads.some((thread) => thread.clientId === CLIENT_ID && thread.counsellorId === counsellor.id),
   );
 
+  function describeGrant(until?: string) {
+    if (!until) return "Until you revoke it";
+    return `Until ${formatWhen(until)}`;
+  }
+
   return (
     <Screen>
       <div className="pad">
-        <button className="back" onClick={pop}>
-          <Icon name="back" size={18} /> Back
+        <button className="back" onClick={() => (open ? setOpenId(null) : pop())}>
+          <Icon name="back" size={18} /> {open ? "All documents" : "Back"}
         </button>
-        <h1 className="display">Documents</h1>
-        <p className="lede">A file stays with you until you share that exact file.</p>
-        <div className="stack">
-          {docs.map((doc) => {
-            const counsellor = data.counsellors.find((item) => item.id === doc.sharedWith);
-            const visible = counsellor ? documentVisibleToCounsellor(doc, counsellor.id) : false;
-            return (
-              <article key={doc.id} className="paper">
-                <Icon name="file" />
-                <div>
-                  <strong>{doc.name}</strong>
-                  <p>{doc.note}</p>
-                  {visible && doc.sharedAt && doc.grantDays && counsellor && (
-                    <p className="fine">Shared with {counsellor.name} until {formatWhen(grantUntil(doc.sharedAt, doc.grantDays).toISOString())}.</p>
-                  )}
-                  {doc.revoked && <p className="fine">Access revoked. A copy already saved cannot be pulled back.</p>}
-                  {!doc.sharedWith && <p className="fine">Not shared.</p>}
-                  <div className="row">
-                    {!visible && (
-                      <Button tone="quiet" onClick={() => setSharing(doc.id)}>
-                        Share
-                      </Button>
-                    )}
-                    {visible && (
-                      <Button tone="ghost" onClick={() => revokeDocument(doc.id)}>
-                        Revoke
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-        <Field label="Add a sample file" value={name} onChange={(event) => setName(event.target.value)} />
-        <Button
-          tone="quiet"
-          onClick={() => {
-            if (name.trim()) addDocument(name.trim());
-          }}
-        >
-          Add file
-        </Button>
-        {sharing && (
-          <div className="overlay" onClick={() => setSharing(null)}>
-            <div className="sheet" onClick={(event) => event.stopPropagation()}>
-              <h3>Share with</h3>
-              {partners.map((counsellor) => (
-                <button
-                  key={counsellor.id}
-                  className="list-card"
+        {!open && (
+          <>
+            <h1 className="display">Documents</h1>
+            <p className="lede">Your files stay private. Each counsellor gets only the file you share, on the terms you set.</p>
+            <div className="stack">
+              {docs.map((doc) => {
+                const grants = activeGrants(doc);
+                return (
+                  <button key={doc.id} className="file-row" onClick={() => setOpenId(doc.id)}>
+                    <span className="file-mark">{doc.kind}</span>
+                    <span>
+                      <strong>{doc.name}</strong>
+                      <em>
+                        {doc.sizeLabel} · {grants.length === 0 ? "Only you" : `Shared with ${grants.length}`}
+                      </em>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <label className="upload">
+              <strong>Add a file</strong>
+              <span>PDF, image, or document from this device. Nothing is uploaded to a live service in this preview.</span>
+              <input
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf,image/*"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  const kind = fileKind(file.name);
+                  const previewUrl = kind === "Image" ? URL.createObjectURL(file) : undefined;
+                  setUpload({ name: file.name, sizeLabel: fileSize(file.size), kind, previewUrl });
+                }}
+              />
+            </label>
+            {upload && (
+              <article className="paper">
+                <strong>{upload.name}</strong>
+                <p>
+                  {upload.kind} · {upload.sizeLabel}
+                </p>
+                <Field label="Note for yourself" value={note} onChange={(event) => setNote(event.target.value)} />
+                <Button
                   onClick={() => {
-                    shareDocument(sharing, counsellor.id);
-                    setSharing(null);
+                    addDocument({ ...upload, note });
+                    setUpload(null);
+                    setNote("");
                   }}
                 >
-                  <strong>{counsellor.name}</strong>
-                </button>
-              ))}
-              <Button tone="ghost" onClick={() => setSharing(null)}>
+                  Keep in my documents
+                </Button>
+              </article>
+            )}
+          </>
+        )}
+        {open && (
+          <>
+            <p className="eyebrow">{open.kind}</p>
+            <h1 className="display">{open.name}</h1>
+            {open.previewUrl && <img className="preview" src={open.previewUrl} alt="" />}
+            <p>
+              {open.sizeLabel} · added {formatWhen(open.addedAt)}
+            </p>
+            <p className="quiet">{open.note}</p>
+            <h3>Who can open it</h3>
+            {open.grants.length === 0 && <p className="quiet">Only you. Staff cannot see this file.</p>}
+            <div className="stack">
+              {open.grants.map((grant) => {
+                const counsellor = data.counsellors.find((item) => item.id === grant.counsellorId);
+                const live = activeGrants(open).some((item) => item.id === grant.id);
+                return (
+                  <article key={grant.id} className="paper">
+                    <strong>{counsellor?.name ?? "Counsellor"}</strong>
+                    <p>
+                      {accessLabel(grant.access)} · {grant.revoked ? "Ended by you" : describeGrant(grant.until)}
+                    </p>
+                    {grant.access === "copy" && live && (
+                      <p className="fine">If they save a copy, ending access cannot pull that copy back.</p>
+                    )}
+                    {live && (
+                      <Button tone="ghost" onClick={() => revokeDocument(open.id, grant.id)}>
+                        End access
+                      </Button>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+            <Button
+              onClick={() => {
+                setPicked([]);
+                setAccess("view");
+                setLength("days");
+                setSharing(true);
+              }}
+            >
+              Share with a counsellor
+            </Button>
+          </>
+        )}
+        {sharing && open && (
+          <div className="overlay" onClick={() => setSharing(false)}>
+            <div className="sheet" onClick={(event) => event.stopPropagation()}>
+              <h3>Share this file</h3>
+              <p className="fine">Choose one or more people. Each person keeps their own access.</p>
+              {partners.map((counsellor) => {
+                const on = picked.includes(counsellor.id);
+                return (
+                  <button
+                    key={counsellor.id}
+                    className={on ? "choice on" : "choice"}
+                    onClick={() => setPicked((current) => (on ? current.filter((id) => id !== counsellor.id) : [...current, counsellor.id]))}
+                  >
+                    <span>
+                      <strong>{counsellor.name}</strong>
+                      <em>{on ? "Selected" : "Not selected"}</em>
+                    </span>
+                  </button>
+                );
+              })}
+              <h3>Access</h3>
+              <button className={access === "view" ? "choice on" : "choice"} onClick={() => setAccess("view")}>
+                <span>
+                  <strong>View in the app</strong>
+                  <em>They can open it here. The app does not give them a saved copy.</em>
+                </span>
+              </button>
+              <button className={access === "copy" ? "choice on" : "choice"} onClick={() => setAccess("copy")}>
+                <span>
+                  <strong>May save a copy</strong>
+                  <em>Ending access later stops the app. A copy they already saved stays with them.</em>
+                </span>
+              </button>
+              <h3>How long</h3>
+              <button className={length === "days" ? "choice on" : "choice"} onClick={() => setLength("days")}>
+                <span>
+                  <strong>{data.settings.grantDays} days</strong>
+                  <em>The length staff set for new shares.</em>
+                </span>
+              </button>
+              <button className={length === "session" ? "choice on" : "choice"} onClick={() => setLength("session")}>
+                <span>
+                  <strong>Until the next session ends</strong>
+                  <em>Only for someone you already have a coming session with.</em>
+                </span>
+              </button>
+              <button className={length === "revoke" ? "choice on" : "choice"} onClick={() => setLength("revoke")}>
+                <span>
+                  <strong>Until I revoke it</strong>
+                  <em>Stays open until you end it yourself.</em>
+                </span>
+              </button>
+              <Button
+                disabled={picked.length === 0}
+                onClick={() => {
+                  shareDocument(open.id, picked, access, length);
+                  setSharing(false);
+                }}
+              >
+                Share
+              </Button>
+              <Button tone="ghost" onClick={() => setSharing(false)}>
                 Close
               </Button>
             </div>
@@ -833,28 +969,61 @@ export function ProfileScreen() {
   );
 }
 
+function payMethod(method?: Booking["paymentMethod"]) {
+  if (method === "card") return "Card";
+  if (method === "bank") return "Bank transfer";
+  if (method === "free") return "Free session";
+  return "Not chosen";
+}
+
 export function WalletScreen() {
   const { data } = useStore();
   const { pop } = useNav();
-  const mine = data.bookings.filter((booking) => booking.clientId === CLIENT_ID);
+  const mine = [...data.bookings.filter((booking) => booking.clientId === CLIENT_ID)].sort(
+    (a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime(),
+  );
   return (
     <div className="screen-scroll pad">
       <button className="back" onClick={pop}>
         <Icon name="back" size={18} /> Profile
       </button>
       <h1 className="display">Payments</h1>
+      <p className="lede">Each receipt keeps the counsellor, the session, and the moment it was paid.</p>
       <div className="stack">
         {mine.map((booking) => {
           const counsellor = data.counsellors.find((item) => item.id === booking.counsellorId);
           return (
-            <article key={booking.id} className="paper">
-              <div>
-                <strong>{counsellor?.name}</strong>
-                <p>{formatWhen(booking.startsAt)}</p>
-                <p>
-                  {booking.priceLkr === 0 ? "Free" : lkr(booking.priceLkr)} · {statusLabel(booking.status)}
-                </p>
-              </div>
+            <article key={booking.id} className="receipt">
+              <header>
+                {counsellor && <Avatar name={counsellor.name} hue={counsellor.hue} size={42} />}
+                <div>
+                  <strong>{counsellor?.name ?? "Counsellor"}</strong>
+                  <span>{counsellor?.credentials}</span>
+                </div>
+                <Pill tone={booking.status === "confirmed" || booking.status === "completed" ? "green" : booking.status === "awaiting-payment" ? "amber" : "ink"}>
+                  {statusLabel(booking.status)}
+                </Pill>
+              </header>
+              <p className="fee">{booking.priceLkr === 0 ? "No fee" : lkr(booking.priceLkr)}</p>
+              <dl>
+                <div>
+                  <dt>Session</dt>
+                  <dd>{formatWhen(booking.startsAt)}</dd>
+                </div>
+                <div>
+                  <dt>Length</dt>
+                  <dd>{booking.minutes} minutes</dd>
+                </div>
+                <div>
+                  <dt>Paid by</dt>
+                  <dd>{payMethod(booking.paymentMethod)}</dd>
+                </div>
+                <div>
+                  <dt>Paid</dt>
+                  <dd>{booking.paidAt ? formatWhen(booking.paidAt) : "Not confirmed yet"}</dd>
+                </div>
+              </dl>
+              {booking.slipName && <p className="fine">Slip on file: {booking.slipName}</p>}
             </article>
           );
         })}
