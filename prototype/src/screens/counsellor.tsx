@@ -296,8 +296,21 @@ function Status({ applicationStatus }: { applicationStatus: string }) {
   );
 }
 
+export function LockedScreen() {
+  const { open } = useNav();
+  return (
+    <div className="screen-scroll pad">
+      <h1 className="display">After approval</h1>
+      <p className="lede">Today, hours, messages, and your fee open once Sith Sevana approves the application.</p>
+      <Button onClick={() => open({ id: "application" })}>Back to application</Button>
+    </div>
+  );
+}
+
 export function counsellorScreen(id: string, clientId?: string) {
   switch (id) {
+    case "locked":
+      return <LockedScreen />;
     case "today":
       return <TodayScreen />;
     case "calendar":

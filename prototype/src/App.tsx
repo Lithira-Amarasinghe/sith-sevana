@@ -33,6 +33,7 @@ const tabIcon: Partial<Record<ScreenId, IconName>> = {
   "staff-payments": "card",
   "staff-support": "shield",
   "staff-settings": "settings",
+  application: "file",
 };
 
 export function App() {
@@ -100,7 +101,7 @@ export function App() {
             {nav.showTabs && nav.role && (
               <nav className="tabbar">
                 {tabItems(nav.role).map((tab) => (
-                  <button key={tab.id} className={nav.route.id === tab.id ? "tab on" : "tab"} onClick={() => nav.open({ id: tab.id })}>
+                  <button key={tab.id} className={nav.activeTab === tab.id ? "tab on" : "tab"} onClick={() => nav.open({ id: tab.id })}>
                     <span>
                       <Icon name={tabIcon[tab.id] ?? "leaf"} size={20} />
                     </span>
@@ -141,7 +142,10 @@ function Current() {
   if (route.id === "welcome") return <WelcomeScreen />;
   if (route.id === "register") return <RegisterScreen />;
   if (role === "staff") return staffScreen(route.id, route);
-  if (role === "applicant" && route.id === "application") return counsellorScreen("application");
+  if (role === "applicant") {
+    if (route.id === "application") return counsellorScreen("application");
+    return counsellorScreen("locked");
+  }
   if (role === "counsellor") {
     const own = counsellorScreen(route.id, route.counsellorId);
     if (own) return own;

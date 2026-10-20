@@ -11,9 +11,39 @@ const homeFor: Record<Role, ScreenId> = {
 const tabs: Record<Role, ScreenId[]> = {
   client: ["home", "counsellors", "sessions", "messages", "profile"],
   counsellor: ["today", "calendar", "messages", "clients", "cprofile"],
-  applicant: [],
+  applicant: ["application", "today", "calendar", "messages", "cprofile"],
   staff: ["staff-home", "staff-counsellors", "staff-payments", "staff-support", "staff-settings"],
 };
+
+const parentTab: Record<Role, Partial<Record<ScreenId, ScreenId>>> = {
+  client: {
+    counsellor: "counsellors",
+    book: "counsellors",
+    pay: "counsellors",
+    session: "sessions",
+    lobby: "sessions",
+    chat: "messages",
+    documents: "profile",
+    wallet: "profile",
+  },
+  counsellor: {
+    client: "clients",
+    chat: "messages",
+    lobby: "today",
+    session: "today",
+  },
+  staff: {
+    "application-review": "staff-counsellors",
+    questions: "staff-counsellors",
+    slip: "staff-payments",
+    complaint: "staff-support",
+  },
+  applicant: {},
+};
+
+export function tabFor(role: Role, id: ScreenId): ScreenId {
+  return parentTab[role][id] ?? (tabs[role].includes(id) ? id : homeFor[role]);
+}
 
 type Nav = {
   stack: Route[];
@@ -24,6 +54,7 @@ type Nav = {
   role: Role | null;
   setRole: (role: Role | null) => void;
   showTabs: boolean;
+  activeTab: ScreenId | null;
 };
 
 const Ctx = createContext<Nav | null>(null);
@@ -34,15 +65,32 @@ export function NavProvider({ children }: { children: ReactNode }) {
 
   const api = useMemo<Nav>(() => {
     const route = stack[stack.length - 1] ?? { id: "welcome" };
-    const showTabs = role != null && tabs[role].includes(route.id);
+    const immersive = route.id === "welcome" || route.id === "register" || route.id === "lobby";
+    const showTabs = role != null && !immersive;
+    const activeTab = role ? tabFor(role, route.id) : null;
+    const withParent = (next: Route): Route[] => {
+      if (!role) return [next];
+      const parent = tabFor(role, next.id);
+      if (parent === next.id) return [next];
+      return [{ id: parent }, next];
+    };
     return {
       stack,
       route,
       role,
       showTabs,
+      activeTab,
       push: (next) => setStack((current) => [...current, next]),
-      pop: () => setStack((current) => (current.length > 1 ? current.slice(0, -1) : current)),
-      open: (next) => setStack([next]),
+      pop: () =>
+        setStack((current) => {
+          if (current.length > 1) return current.slice(0, -1);
+          if (!role) return current;
+          const leaf = current[current.length - 1];
+          if (!leaf) return current;
+          const parent = tabFor(role, leaf.id);
+          return parent === leaf.id ? current : [{ id: parent }];
+        }),
+      open: (next) => setStack(withParent(next)),
       setRole: (next) => {
         setRoleState(next);
         setStack(next ? [{ id: homeFor[next] }] : [{ id: "welcome" }]);
@@ -81,7 +129,7 @@ export function tabItems(role: Role) {
     clients: "Clients",
     client: "Client",
     cprofile: "Profile",
-    application: "Application",
+    application: "Apply",
     "staff-home": "Home",
     "staff-counsellors": "Counsellors",
     "application-review": "Review",

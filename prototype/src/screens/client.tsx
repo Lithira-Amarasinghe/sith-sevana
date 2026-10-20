@@ -710,6 +710,7 @@ export function ChatScreen({ threadId }: { threadId: string }) {
 
 export function DocumentsScreen() {
   const { data, addDocument, shareDocument, revokeDocument } = useStore();
+  const { pop } = useNav();
   const [sharing, setSharing] = useState<string | null>(null);
   const [name, setName] = useState("Letter.pdf");
   const docs = data.documents.filter((doc) => doc.clientId === CLIENT_ID);
@@ -721,6 +722,9 @@ export function DocumentsScreen() {
   return (
     <Screen>
       <div className="pad">
+        <button className="back" onClick={pop}>
+          <Icon name="back" size={18} /> Back
+        </button>
         <h1 className="display">Documents</h1>
         <p className="lede">A file stays with you until you share that exact file.</p>
         <div className="stack">
