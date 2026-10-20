@@ -4,7 +4,7 @@ import { useNav } from "../nav";
 import { useStore } from "../store";
 import type { Slot } from "../types";
 import { Area, Avatar, Button, Empty, Field, Icon, Pill } from "../ui";
-import { MessagesScreen } from "./client";
+import { DocumentReader, MessagesScreen } from "./client";
 
 function Screen({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   return (
@@ -226,6 +226,7 @@ export function ClientRecord({ clientId }: { clientId: string }) {
             {accessLabel(grant.access)}
             {grant.until ? ` · until ${formatWhen(grant.until)}` : " · until they end it"}
           </p>
+          <DocumentReader doc={doc} />
         </article>
       ))}
       <Button

@@ -198,42 +198,68 @@ export function QuestionsScreen() {
 export function PaymentsScreen() {
   const { data } = useStore();
   const { push } = useNav();
-  const slips = data.bookings.filter((booking) => booking.status === "awaiting-payment" || booking.status === "payment-rejected");
-  const refunds = data.bookings.filter((booking) => booking.status === "refund-review" || booking.status === "refunded");
+  const [filter, setFilter] = useState<"Decide" | "Slips" | "Refunds" | "Paid">("Decide");
+  const rows = data.bookings.filter((booking) => {
+    if (filter === "Decide") return booking.status === "awaiting-payment" || booking.status === "refund-review";
+    if (filter === "Slips") return booking.paymentMethod === "bank";
+    if (filter === "Refunds") return booking.status === "refund-review" || booking.status === "refunded";
+    return Boolean(booking.paidAt);
+  });
+  const waitingTotal = data.bookings
+    .filter((booking) => booking.status === "awaiting-payment")
+    .reduce((sum, booking) => sum + booking.priceLkr, 0);
   return (
     <Screen>
       <div className="pad">
         <h1 className="display">Payments</h1>
-        <h3>Bank slips</h3>
-        {slips.map((booking) => (
-          <button key={booking.id} className="list-card" onClick={() => push({ id: "slip", bookingId: booking.id })}>
-            <div>
-              <strong>{booking.clientName}</strong>
-              <span>
-                {lkr(booking.priceLkr)} · {statusLabel(booking.status)}
-              </span>
-            </div>
-          </button>
-        ))}
-        <h3>Refunds</h3>
-        {refunds.map((booking) => (
-          <article key={booking.id} className="paper">
-            <strong>{booking.clientName}</strong>
-            <p>
-              {lkr(booking.priceLkr)} · {statusLabel(booking.status)}
-            </p>
-            <p className="fine">{formatWhen(booking.startsAt)}</p>
-          </article>
-        ))}
+        <p className="lede">Slips waiting to be checked, and refunds waiting for a decision. A slip does not confirm a booking by itself.</p>
+        <div className="facts">
+          <div>
+            <span>Slips to check</span>
+            <strong>{lkr(waitingTotal)}</strong>
+          </div>
+          <div>
+            <span>Refunds open</span>
+            <strong>{data.bookings.filter((booking) => booking.status === "refund-review").length}</strong>
+          </div>
+        </div>
+        <div className="chips">
+          {(["Decide", "Slips", "Refunds", "Paid"] as const).map((item) => (
+            <button key={item} className={item === filter ? "chip on" : "chip"} onClick={() => setFilter(item)}>
+              {item}
+            </button>
+          ))}
+        </div>
+        {rows.length === 0 && <p className="quiet">Nothing in this list.</p>}
+        <div className="stack">
+          {rows.map((booking) => {
+            const counsellor = data.counsellors.find((item) => item.id === booking.counsellorId);
+            return (
+              <button key={booking.id} className="pay-row" onClick={() => push({ id: "slip", bookingId: booking.id })}>
+                <span>
+                  <strong>{booking.clientName}</strong>
+                  <em>
+                    {counsellor?.name ?? "Counsellor"} · {formatWhen(booking.startsAt)}
+                  </em>
+                </span>
+                <span>
+                  <strong>{lkr(booking.priceLkr)}</strong>
+                  <em>{statusLabel(booking.status)}</em>
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </Screen>
   );
 }
 
 export function SlipScreen({ bookingId }: { bookingId: string }) {
-  const { data, markPaid, rejectSlip } = useStore();
+  const { data, markPaid, rejectSlip, markRefunded } = useStore();
   const { pop } = useNav();
   const booking = data.bookings.find((item) => item.id === bookingId);
+  const counsellor = data.counsellors.find((item) => item.id === booking?.counsellorId);
   if (!booking) return null;
   return (
     <div className="screen-scroll pad">
@@ -241,18 +267,33 @@ export function SlipScreen({ bookingId }: { bookingId: string }) {
         <Icon name="back" size={18} /> Payments
       </button>
       <h1 className="display">{booking.clientName}</h1>
-      <div className="slip">
-        <p>SAMPLE SLIP</p>
-        <strong>{lkr(booking.priceLkr)}</strong>
-        <span>{booking.slipName ?? "No file name"}</span>
-        <span>{formatWhen(booking.createdAt)}</span>
+      <p className="lede">
+        {counsellor?.name ?? "Counsellor"} · {formatWhen(booking.startsAt)}
+      </p>
+      <div className="facts">
+        <div>
+          <span>Fee</span>
+          <strong>{lkr(booking.priceLkr)}</strong>
+        </div>
+        <div>
+          <span>Method</span>
+          <strong>{booking.paymentMethod ?? "—"}</strong>
+        </div>
+        <div>
+          <span>Paid</span>
+          <strong>{booking.paidAt ? formatWhen(booking.paidAt) : "Not yet"}</strong>
+        </div>
       </div>
+      {booking.paymentMethod === "bank" && (
+        <div className="slip">
+          <p>SAMPLE SLIP</p>
+          <strong>{lkr(booking.priceLkr)}</strong>
+          <span>{booking.slipName ?? "No file name"}</span>
+          <span>Uploaded {formatWhen(booking.createdAt)}</span>
+        </div>
+      )}
       <p className="fine">Mark paid is what confirms the booking. The upload alone does not.</p>
-      {booking.status === "confirmed" ? (
-        <Pill tone="green">Confirmed</Pill>
-      ) : booking.status === "payment-rejected" ? (
-        <Pill tone="rose">Slip rejected. The client can upload another.</Pill>
-      ) : (
+      {booking.status === "awaiting-payment" && (
         <div className="row">
           <Button onClick={() => markPaid(booking.id)}>Mark paid</Button>
           <Button tone="ghost" onClick={() => rejectSlip(booking.id)}>
@@ -260,6 +301,10 @@ export function SlipScreen({ bookingId }: { bookingId: string }) {
           </Button>
         </div>
       )}
+      {booking.status === "refund-review" && <Button onClick={() => markRefunded(booking.id)}>Mark refunded</Button>}
+      {booking.status === "confirmed" && <Pill tone="green">Confirmed</Pill>}
+      {booking.status === "refunded" && <Pill tone="ink">Refunded</Pill>}
+      {booking.status === "payment-rejected" && <Pill tone="rose">Slip rejected. The client can upload another.</Pill>}
     </div>
   );
 }

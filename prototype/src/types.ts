@@ -96,6 +96,7 @@ export type ClientDoc = {
   kind: string;
   sizeLabel: string;
   addedAt: string;
+  body?: string;
   previewUrl?: string;
   grants: DocGrant[];
 };

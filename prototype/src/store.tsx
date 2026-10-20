@@ -22,6 +22,8 @@ type Action =
   | { type: "ensure-thread"; counsellorId: string; clientId: string; clientName: string; rule: ChatRule }
   | { type: "message"; threadId: string; from: "client" | "counsellor"; text: string }
   | { type: "add-doc"; doc: DataState["documents"][number] }
+  | { type: "rename-doc"; docId: string; name: string }
+  | { type: "mark-refunded"; bookingId: string }
   | { type: "share"; docId: string; grants: DocGrant[] }
   | { type: "revoke"; docId: string; grantId: string }
   | { type: "slots"; counsellorId: string; slots: Slot[] }
@@ -52,7 +54,9 @@ type Store = {
   closeComplaint: (complaintId: string) => void;
   ensureThread: (counsellorId: string, clientId?: string, clientName?: string) => string;
   sendMessage: (threadId: string, from: "client" | "counsellor", text: string) => void;
-  addDocument: (file: { name: string; note: string; sizeLabel: string; kind: string; previewUrl?: string }) => void;
+  addDocument: (file: { name: string; note: string; sizeLabel: string; kind: string; body?: string; previewUrl?: string }) => void;
+  renameDocument: (docId: string, name: string) => void;
+  markRefunded: (bookingId: string) => void;
   shareDocument: (docId: string, counsellorIds: string[], access: AccessKind, length: "revoke" | "days" | "session") => void;
   revokeDocument: (docId: string, grantId: string) => void;
   setSlots: (counsellorId: string, slots: Slot[]) => void;
@@ -97,6 +101,18 @@ function reducer(state: DataState, action: Action): DataState {
         bookings: state.bookings.map((booking) =>
           booking.id === action.bookingId ? { ...booking, status: "confirmed", paidAt: new Date().toISOString() } : booking,
         ),
+      };
+    case "mark-refunded":
+      return {
+        ...state,
+        bookings: state.bookings.map((booking) =>
+          booking.id === action.bookingId ? { ...booking, status: "refunded" } : booking,
+        ),
+      };
+    case "rename-doc":
+      return {
+        ...state,
+        documents: state.documents.map((doc) => (doc.id === action.docId ? { ...doc, name: action.name } : doc)),
       };
     case "reject-slip":
       return {
@@ -364,6 +380,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "mark-paid", bookingId });
         dispatch({ type: "toast", text: "Marked as paid. The booking is confirmed." });
       },
+      markRefunded: (bookingId) => {
+        dispatch({ type: "mark-refunded", bookingId });
+        dispatch({ type: "toast", text: "Refund recorded" });
+      },
       rejectSlip: (bookingId) => {
         dispatch({ type: "reject-slip", bookingId });
         dispatch({ type: "toast", text: "Slip rejected" });
@@ -418,6 +438,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             kind: file.kind,
             sizeLabel: file.sizeLabel,
             addedAt: new Date().toISOString(),
+            body: file.body,
             previewUrl: file.previewUrl,
             grants: [],
           },
@@ -469,6 +490,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 ? `Shared. No upcoming session for ${skippedNames.join(", ")}.`
                 : "Access updated",
         });
+      },
+      renameDocument: (docId, name) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        dispatch({ type: "rename-doc", docId, name: trimmed });
+        dispatch({ type: "toast", text: "Name updated" });
       },
       revokeDocument: (docId, grantId) => {
         dispatch({ type: "revoke", docId, grantId });

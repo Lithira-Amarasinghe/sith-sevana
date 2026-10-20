@@ -100,7 +100,7 @@ export const notes: Record<ScreenId, { title: string; intent: string; ask: strin
     intent: "Enough to choose someone, without looking like a marketplace.",
     ask: [
       "Which facts are required: qualifications, languages, fee, approach, next times?",
-      "Should star ratings be public in version 1?",
+      "Should star ratings be public in version 1, with the written notes on this profile?",
       "Can a client message before booking, or only after?",
     ],
   },
@@ -167,6 +167,7 @@ export const notes: Record<ScreenId, { title: string; intent: string; ask: strin
     title: "Documents",
     intent: "A file stays in the client's vault. They can share that same file with more than one counsellor, and end each person's access on its own.",
     ask: [
+      "Should the name the client chooses be what the counsellor sees, rather than the file name from their device?",
       "Are the two access types right: view in the app, or allow a saved copy?",
       "Should the length be the company default, until the next session, or until the client revokes it?",
       "Ending a saved-copy grant cannot pull back a copy already kept. Is that warning clear enough?",
@@ -180,7 +181,10 @@ export const notes: Record<ScreenId, { title: string; intent: string; ask: strin
   wallet: {
     title: "Payments",
     intent: "A receipt shows who the session is with, when it is, how it was paid, and when the payment was confirmed.",
-    ask: ["Is the paid time the card success, or the moment staff mark a bank slip paid?"],
+    ask: [
+      "Is the paid time the card success, or the moment staff mark a bank slip paid?",
+      "Are Paid, Waiting, Refunds, and Cancelled the filters a client needs?",
+    ],
   },
   today: {
     title: "Counsellor today",
@@ -238,7 +242,10 @@ export const notes: Record<ScreenId, { title: string; intent: string; ask: strin
   "staff-payments": {
     title: "Payments",
     intent: "Slips and refunds. Uploading a slip is not payment.",
-    ask: ["How quickly should a slip be reviewed, and who is notified?"],
+    ask: [
+      "Should the desk open on what needs a decision: slips to check and refunds to settle?",
+      "How quickly should a slip be reviewed, and who is notified?",
+    ],
   },
   slip: {
     title: "Bank slip",

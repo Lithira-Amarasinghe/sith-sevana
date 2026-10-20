@@ -21,7 +21,7 @@ import {
 } from "../logic";
 import { useNav } from "../nav";
 import { useStore } from "../store";
-import type { AccessKind, Booking } from "../types";
+import type { AccessKind, Booking, ClientDoc } from "../types";
 import { Area, Avatar, Button, Empty, Field, Icon, Pill, Stars } from "../ui";
 
 function useCounsellor(id?: string) {
@@ -265,6 +265,7 @@ export function CounsellorProfile({ id }: { id: string }) {
           ))}
         </div>
         <p>{counsellor.bio}</p>
+        <CounsellorReviews counsellorId={counsellor.id} />
         <h3>How a session feels</h3>
         <p>{counsellor.approach}</p>
         <div className="facts">
@@ -705,6 +706,49 @@ export function ChatScreen({ threadId }: { threadId: string }) {
   );
 }
 
+function CounsellorReviews({ counsellorId }: { counsellorId: string }) {
+  const { data } = useStore();
+  const notes = data.bookings.filter((booking) => booking.counsellorId === counsellorId && booking.review && !booking.review.hidden);
+  if (notes.length === 0) return null;
+  return (
+    <section>
+      <h3>From clients</h3>
+      <p className="fine">One note after a completed session. A review staff have hidden does not appear here.</p>
+      <div className="stack">
+        {notes.map((booking) => (
+          <article key={booking.id} className="paper">
+            <strong>
+              {booking.clientName.split(" ")[0]} · {booking.review?.stars} stars
+            </strong>
+            <p>{booking.review?.text}</p>
+            <p className="fine">{formatWhen(booking.startsAt)}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function DocumentReader({ doc }: { doc: ClientDoc }) {
+  if (doc.kind === "Image" && doc.previewUrl) return <img className="preview" src={doc.previewUrl} alt={doc.name} />;
+  if (doc.kind === "PDF" && doc.previewUrl) return <iframe className="doc-frame" title={doc.name} src={doc.previewUrl} />;
+  if (doc.body) {
+    return (
+      <article className="doc-page">
+        {doc.body.split("\n").map((line, index) => (
+          <p key={`${index}-${line.slice(0, 12)}`}>{line || "\u00a0"}</p>
+        ))}
+      </article>
+    );
+  }
+  return <p className="quiet">This file can be kept and shared. A page preview is available for images, PDF, and text.</p>;
+}
+
+function preferredName(filename: string) {
+  const stem = filename.replace(/\.[^.]+$/, "");
+  return stem.replace(/[-_]+/g, " ").trim() || filename;
+}
+
 function OpeningDiary({ items, selected, onPick }: { items: Opening[]; selected?: string; onPick: (startsAt: string) => void }) {
   const groups = new Map<string, Opening[]>();
   for (const item of items) {
@@ -732,15 +776,16 @@ function OpeningDiary({ items, selected, onPick }: { items: Opening[]; selected?
 }
 
 export function DocumentsScreen() {
-  const { data, addDocument, shareDocument, revokeDocument } = useStore();
+  const { data, addDocument, shareDocument, revokeDocument, renameDocument } = useStore();
   const { pop } = useNav();
   const [openId, setOpenId] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
   const [access, setAccess] = useState<AccessKind>("view");
   const [length, setLength] = useState<"revoke" | "days" | "session">("days");
-  const [upload, setUpload] = useState<{ name: string; sizeLabel: string; kind: string; previewUrl?: string } | null>(null);
+  const [upload, setUpload] = useState<{ fileName: string; preferred: string; sizeLabel: string; kind: string; body?: string; previewUrl?: string } | null>(null);
   const [note, setNote] = useState("");
+  const [draftName, setDraftName] = useState<string | null>(null);
   const docs = data.documents.filter((doc) => doc.clientId === CLIENT_ID);
   const open = docs.find((doc) => doc.id === openId) ?? null;
   const partners = data.counsellors.filter((counsellor) =>
@@ -767,7 +812,7 @@ export function DocumentsScreen() {
               {docs.map((doc) => {
                 const grants = activeGrants(doc);
                 return (
-                  <button key={doc.id} className="file-row" onClick={() => setOpenId(doc.id)}>
+                  <button key={doc.id} className="file-row" onClick={() => { setDraftName(null); setOpenId(doc.id); }}>
                     <span className="file-mark">{doc.kind}</span>
                     <span>
                       <strong>{doc.name}</strong>
@@ -787,23 +832,40 @@ export function DocumentsScreen() {
                 accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,application/pdf,image/*"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
+                  event.target.value = "";
                   if (!file) return;
                   const kind = fileKind(file.name);
-                  const previewUrl = kind === "Image" ? URL.createObjectURL(file) : undefined;
-                  setUpload({ name: file.name, sizeLabel: fileSize(file.size), kind, previewUrl });
+                  const previewUrl = kind === "Image" || kind === "PDF" ? URL.createObjectURL(file) : undefined;
+                  const next = { fileName: file.name, preferred: preferredName(file.name), sizeLabel: fileSize(file.size), kind, previewUrl };
+                  if (kind === "Image" || kind === "PDF" || file.type.startsWith("text/")) {
+                    if (file.type.startsWith("text/") || file.name.toLowerCase().endsWith(".txt")) {
+                      void file.text().then((body) => setUpload({ ...next, kind: "Text", body }));
+                      return;
+                    }
+                  }
+                  setUpload(next);
                 }}
               />
             </label>
             {upload && (
               <article className="paper">
-                <strong>{upload.name}</strong>
+                <p className="fine">File on device: {upload.fileName}</p>
+                <Field label="Name in your documents" value={upload.preferred} onChange={(event) => setUpload({ ...upload, preferred: event.target.value })} />
                 <p>
                   {upload.kind} · {upload.sizeLabel}
                 </p>
                 <Field label="Note for yourself" value={note} onChange={(event) => setNote(event.target.value)} />
                 <Button
+                  disabled={!upload.preferred.trim()}
                   onClick={() => {
-                    addDocument({ ...upload, note });
+                    addDocument({
+                      name: upload.preferred.trim(),
+                      note,
+                      sizeLabel: upload.sizeLabel,
+                      kind: upload.kind,
+                      body: upload.body,
+                      previewUrl: upload.previewUrl,
+                    });
                     setUpload(null);
                     setNote("");
                   }}
@@ -817,8 +879,27 @@ export function DocumentsScreen() {
         {open && (
           <>
             <p className="eyebrow">{open.kind}</p>
-            <h1 className="display">{open.name}</h1>
-            {open.previewUrl && <img className="preview" src={open.previewUrl} alt="" />}
+            {draftName === null ? (
+              <div className="name-row">
+                <h1 className="display">{open.name}</h1>
+                <Button tone="quiet" onClick={() => setDraftName(open.name)}>
+                  Edit name
+                </Button>
+              </div>
+            ) : (
+              <div className="name-row">
+                <Field label="Name in your documents" value={draftName} onChange={(event) => setDraftName(event.target.value)} />
+                <Button
+                  onClick={() => {
+                    renameDocument(open.id, draftName);
+                    setDraftName(null);
+                  }}
+                >
+                  Save name
+                </Button>
+              </div>
+            )}
+            <DocumentReader doc={open} />
             <p>
               {open.sizeLabel} · added {formatWhen(open.addedAt)}
             </p>
@@ -979,9 +1060,17 @@ function payMethod(method?: Booking["paymentMethod"]) {
 export function WalletScreen() {
   const { data } = useStore();
   const { pop } = useNav();
-  const mine = [...data.bookings.filter((booking) => booking.clientId === CLIENT_ID)].sort(
-    (a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime(),
-  );
+  const [filter, setFilter] = useState("All");
+  const filters = ["All", "Paid", "Waiting", "Refunds", "Cancelled"];
+  const mine = [...data.bookings.filter((booking) => booking.clientId === CLIENT_ID)]
+    .filter((booking) => {
+      if (filter === "Paid") return Boolean(booking.paidAt) && booking.status !== "refunded" && booking.status !== "refund-review";
+      if (filter === "Waiting") return booking.status === "awaiting-payment" || booking.status === "payment-rejected";
+      if (filter === "Refunds") return booking.status === "refund-review" || booking.status === "refunded";
+      if (filter === "Cancelled") return booking.status === "cancelled";
+      return true;
+    })
+    .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
   return (
     <div className="screen-scroll pad">
       <button className="back" onClick={pop}>
@@ -989,6 +1078,14 @@ export function WalletScreen() {
       </button>
       <h1 className="display">Payments</h1>
       <p className="lede">Each receipt keeps the counsellor, the session, and the moment it was paid.</p>
+      <div className="chips">
+        {filters.map((item) => (
+          <button key={item} className={item === filter ? "chip on" : "chip"} onClick={() => setFilter(item)}>
+            {item}
+          </button>
+        ))}
+      </div>
+      {mine.length === 0 && <Empty title="Nothing in this filter" body="Try another status, or show all payments." />}
       <div className="stack">
         {mine.map((booking) => {
           const counsellor = data.counsellors.find((item) => item.id === booking.counsellorId);
