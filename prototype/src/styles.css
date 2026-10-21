@@ -83,16 +83,43 @@ p { line-height: 1.5; }
   border-radius: 10px;
   margin: 2px 0;
 }
-.stage { display: grid; place-items: center; padding: 8px 8px 24px; min-width: 0; }
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 12px 16px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.device-picker { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.device-picker button {
+  border: 1px solid rgba(244, 240, 232, 0.22);
+  background: transparent;
+  color: #f4f0e8;
+  border-radius: 999px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.device-picker button.on { background: #f4f0e8; color: var(--teal-deep); }
+.device-chrome { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.device-caption { margin: 0; color: rgba(244, 240, 232, 0.68); font-size: 0.78rem; text-align: center; }
+.device-slot { position: relative; flex: none; }
 .device {
-  width: min(400px, 100%);
-  height: min(860px, calc(100vh - 92px));
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
   background: #0e2429;
   border-radius: 36px;
   padding: 10px;
   box-shadow: 0 30px 70px rgba(0, 0, 0, 0.35);
 }
 .device-screen {
+  width: 100%;
   height: 100%;
   background: var(--paper);
   border-radius: 28px;
@@ -100,6 +127,17 @@ p { line-height: 1.5; }
   display: flex;
   flex-direction: column;
   position: relative;
+}
+.screen-scroll,
+.sheet {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.screen-scroll::-webkit-scrollbar,
+.sheet::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 .screen-scroll { flex: 1; overflow: auto; min-height: 0; }
 .pad { padding: 18px 18px 28px; }
@@ -233,7 +271,17 @@ p { line-height: 1.5; }
 }
 .crisis em { display: block; font-style: normal; color: var(--soft); }
 .list-card { display: flex; justify-content: space-between; gap: 10px; align-items: center; width: 100%; }
+.list-card > div { min-width: 0; flex: 1; }
 .list-card div, .person span { display: flex; flex-direction: column; gap: 2px; }
+.list-card.steady { height: 72px; overflow: hidden; }
+.list-card.steady strong,
+.list-card.steady span,
+.clip {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .person { width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; }
 .person-side { text-align: right; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 .avatar {
@@ -316,7 +364,36 @@ p { line-height: 1.5; }
   box-shadow: var(--shadow);
 }
 .bubble.mine { margin-left: auto; background: var(--teal); color: white; border-radius: 16px 16px 6px 16px; }
+.bubble p { margin: 0; }
 .bubble time { display: block; margin-top: 4px; opacity: 0.7; font-size: 0.72rem; }
+.bubble-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--mist);
+  color: var(--teal-deep);
+  text-align: left;
+  cursor: pointer;
+}
+.bubble.mine .bubble-file { background: rgba(255, 255, 255, 0.16); color: white; }
+.bubble-file span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: var(--mist);
+  color: var(--teal-deep);
+}
+.attach-chip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attach-chip button { border: 0; background: transparent; color: inherit; display: grid; place-items: center; cursor: pointer; padding: 0; }
 .composer p { margin: 0 0 8px; color: var(--soft); font-size: 0.86rem; }
 .composer-row { display: flex; gap: 8px; }
 .composer-row input { flex: 1; }
@@ -399,7 +476,10 @@ p { line-height: 1.5; }
   box-shadow: var(--shadow);
   cursor: pointer;
 }
-.file-row em { display: block; color: var(--mute); font-style: normal; font-size: 0.86rem; }
+.file-row > span:last-child { min-width: 0; }
+.file-row strong,
+.file-row em { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-row em { color: var(--mute); font-style: normal; font-size: 0.86rem; }
 .file-mark {
   width: 48px;
   height: 56px;
@@ -434,8 +514,32 @@ p { line-height: 1.5; }
 }
 .doc-page p { margin: 0 0 10px; }
 .doc-frame { width: 100%; height: 280px; border: 0; border-radius: 16px; background: white; }
-.name-row { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
-.name-row .btn { align-self: flex-start; }
+.name-row { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; min-width: 0; }
+.name-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.name-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: #efeae2;
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.15rem;
+}
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border: 0;
+  border-radius: 12px;
+  background: var(--mist);
+  color: var(--teal-deep);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.icon-btn.ghost { background: transparent; }
+.icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .pay-row {
   display: flex;
   justify-content: space-between;
@@ -479,7 +583,7 @@ p { line-height: 1.5; }
   z-index: 4;
 }
 .toast { z-index: 5; }
-.sheet { background: var(--paper); border-radius: 20px 20px 0 0; padding: 16px; width: 100%; }
+.sheet { background: var(--paper); border-radius: 20px 20px 0 0; padding: 16px; width: 100%; max-height: 82%; overflow: auto; }
 .notes {
   margin: 8px 16px 20px 0;
   background: #fffdf9;
@@ -507,10 +611,7 @@ p { line-height: 1.5; }
   }
   .notes.open { display: block; }
   .notes-close { display: inline-flex; margin-bottom: 8px; color: var(--teal-deep); border-color: var(--line); }
-  .device { width: min(400px, 100%); }
 }
 @media (max-width: 720px) {
   .review-bar { flex-direction: column; align-items: flex-start; }
-  .device { width: 100%; height: calc(100vh - 150px); border-radius: 0; padding: 0; }
-  .device-screen { border-radius: 0; }
 }

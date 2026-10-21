@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from "react";
 import { createSeed } from "./data";
-import { CLIENT_ID, quote, threadIdFor } from "./logic";
+import { CLIENT_ID, documentVisibleToCounsellor, quote, threadIdFor } from "./logic";
 import type { AccessKind, Application, Booking, ChatRule, DataState, DocGrant, Question, Role, SessionUser, Slot } from "./types";
 
 type Action =
@@ -20,7 +20,7 @@ type Action =
   | { type: "complaint"; complaint: DataState["complaints"][number] }
   | { type: "close-complaint"; complaintId: string }
   | { type: "ensure-thread"; counsellorId: string; clientId: string; clientName: string; rule: ChatRule }
-  | { type: "message"; threadId: string; from: "client" | "counsellor"; text: string }
+  | { type: "message"; threadId: string; from: "client" | "counsellor"; text: string; docId?: string }
   | { type: "add-doc"; doc: DataState["documents"][number] }
   | { type: "rename-doc"; docId: string; name: string }
   | { type: "mark-refunded"; bookingId: string }
@@ -53,7 +53,7 @@ type Store = {
   addComplaint: (bookingId: string, text: string) => void;
   closeComplaint: (complaintId: string) => void;
   ensureThread: (counsellorId: string, clientId?: string, clientName?: string) => string;
-  sendMessage: (threadId: string, from: "client" | "counsellor", text: string) => void;
+  sendMessage: (threadId: string, from: "client" | "counsellor", text: string, docId?: string) => void;
   addDocument: (file: { name: string; note: string; sizeLabel: string; kind: string; body?: string; previewUrl?: string }) => void;
   renameDocument: (docId: string, name: string) => void;
   markRefunded: (bookingId: string) => void;
@@ -180,7 +180,13 @@ function reducer(state: DataState, action: Action): DataState {
                 ...thread,
                 messages: [
                   ...thread.messages,
-                  { id: `m-${Date.now()}`, from: action.from, text: action.text, at: new Date().toISOString() },
+                  {
+                    id: `m-${Date.now()}`,
+                    from: action.from,
+                    text: action.text,
+                    at: new Date().toISOString(),
+                    attachment: action.docId ? { docId: action.docId } : undefined,
+                  },
                 ],
               }
             : thread,
@@ -426,7 +432,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
         return threadIdFor(counsellorId, clientId);
       },
-      sendMessage: (threadId, from, text) => dispatch({ type: "message", threadId, from, text }),
+      sendMessage: (threadId, from, text, docId) => {
+        const trimmed = text.trim();
+        if (!trimmed && !docId) return;
+        const thread = data.threads.find((item) => item.id === threadId);
+        if (docId && thread && from === "client") {
+          const doc = data.documents.find((item) => item.id === docId && item.clientId === thread.clientId);
+          if (doc && !documentVisibleToCounsellor(doc, thread.counsellorId)) {
+            dispatch({
+              type: "share",
+              docId,
+              grants: [
+                {
+                  id: `g-${crypto.randomUUID()}`,
+                  counsellorId: thread.counsellorId,
+                  access: "view",
+                  sharedAt: new Date().toISOString(),
+                },
+              ],
+            });
+            dispatch({ type: "toast", text: "They can view this file until you end access" });
+          }
+        }
+        dispatch({ type: "message", threadId, from, text: trimmed, docId });
+      },
       addDocument: (file) =>
         dispatch({
           type: "add-doc",

@@ -181,9 +181,11 @@ export function ClientsScreen() {
         <p className="lede">People with a session. There is no notes field in this version.</p>
         <div className="stack">
           {[...names.entries()].map(([id, name]) => (
-            <button key={id} className="list-card" onClick={() => push({ id: "client", counsellorId: id })}>
-              <strong>{name}</strong>
-              <span>Shared files and sessions</span>
+            <button key={id} className="list-card steady" title={name} onClick={() => push({ id: "client", counsellorId: id })}>
+              <div>
+                <strong>{name}</strong>
+                <span>Shared files and sessions</span>
+              </div>
             </button>
           ))}
         </div>

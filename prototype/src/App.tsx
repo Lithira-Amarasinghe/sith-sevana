@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { notes, principles, screenIndex } from "./notes";
 import { jumpRoute, tabItems, useNav } from "./nav";
 import { WelcomeScreen, RegisterScreen } from "./screens/auth";
@@ -5,8 +6,17 @@ import { clientScreen } from "./screens/client";
 import { counsellorScreen } from "./screens/counsellor";
 import { staffScreen } from "./screens/staff";
 import { useStore } from "./store";
-import type { IconName } from "./ui";
+import { Icon, type IconName } from "./ui";
 import type { Role, ScreenId } from "./types";
+
+const PHONES = [
+  { id: "s26", label: "Galaxy S26", width: 360, height: 780, detail: "Latest Samsung · 6.3 in · CSS viewport" },
+  { id: "compact", label: "Compact", width: 320, height: 694, detail: "Small width · large display size" },
+  { id: "iphone", label: "iPhone 16", width: 393, height: 852, detail: "Common phone" },
+  { id: "large", label: "Large", width: 430, height: 932, detail: "Large phone" },
+] as const;
+
+const BEZEL = 10;
 
 function roleFor(id: ScreenId): Role | null {
   if (id === "welcome" || id === "register") return null;
@@ -15,9 +25,6 @@ function roleFor(id: ScreenId): Role | null {
   if (id === "today" || id === "calendar" || id === "clients" || id === "client" || id === "cprofile") return "counsellor";
   return "client";
 }
-import { Icon } from "./ui";
-import { useState } from "react";
-
 const tabIcon: Partial<Record<ScreenId, IconName>> = {
   home: "home",
   counsellors: "people",
@@ -40,7 +47,30 @@ export function App() {
   const nav = useNav();
   const { data, enter, reset } = useStore();
   const [notesOpen, setNotesOpen] = useState(false);
+  const [phoneId, setPhoneId] = useState<(typeof PHONES)[number]["id"]>("s26");
+  const stageRef = useRef<HTMLElement>(null);
+  const chromeRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const phone = PHONES.find((item) => item.id === phoneId) ?? PHONES[0];
+  const outerW = phone.width + BEZEL * 2;
+  const outerH = phone.height + BEZEL * 2;
   const note = notes[nav.route.id];
+
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const measure = () => {
+      const chrome = chromeRef.current?.offsetHeight ?? 0;
+      const availW = stage.clientWidth - 24;
+      const availH = stage.clientHeight - chrome - 16;
+      if (availW < 80 || availH < 80) return;
+      setScale(Math.min(1, availW / outerW, availH / outerH));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, [outerW, outerH]);
 
   function preview(role: Role) {
     enter(role);
@@ -94,9 +124,22 @@ export function App() {
           </div>
         ))}
       </aside>
-      <main className="stage">
-        <div className="device">
-          <div className="device-screen">
+      <main className="stage" ref={stageRef}>
+        <div className="device-chrome" ref={chromeRef}>
+          <div className="device-picker" role="group" aria-label="Phone size">
+            {PHONES.map((item) => (
+              <button key={item.id} className={item.id === phone.id ? "on" : ""} onClick={() => setPhoneId(item.id)}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <p className="device-caption">
+            {phone.width} × {phone.height} · {phone.detail}
+          </p>
+        </div>
+        <div className="device-slot" style={{ width: outerW * scale, height: outerH * scale }}>
+          <div className="device" style={{ width: outerW, height: outerH, transform: `scale(${scale})` }}>
+            <div className="device-screen">
             <Current />
             {nav.showTabs && nav.role && (
               <nav className="tabbar">
@@ -111,6 +154,7 @@ export function App() {
               </nav>
             )}
             {data.toast && <div className="toast">{data.toast}</div>}
+            </div>
           </div>
         </div>
       </main>

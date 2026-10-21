@@ -252,6 +252,20 @@ export function createSeed(): DataState {
         paidAt: at(-12, 10, 1),
         review: { stars: 5, text: "Practical help before exams. I left knowing which two things to do this week." },
       },
+      {
+        id: "b-chathurika",
+        counsellorId: "nadeesha",
+        clientId: "chathurika",
+        clientName: "Chathurika Wanniarachchi Jayawardena",
+        startsAt: nextWeekday(5, 10, 0),
+        minutes: 60,
+        priceLkr: 4500,
+        cancelHours: 12,
+        status: "confirmed",
+        paymentMethod: "card",
+        createdAt: at(-3, 14, 0),
+        paidAt: at(-3, 14, 2),
+      },
     ],
     threads: [
       {
@@ -273,6 +287,13 @@ export function createSeed(): DataState {
             text: "Of course, Sanduni. We can begin whenever you are ready. There is nothing you need to prepare.",
             at: at(0, 8, 12),
           },
+          {
+            id: "m3",
+            from: "client",
+            text: "I am sending the notes I kept.",
+            at: at(0, 8, 18),
+            attachment: { docId: "d-sleep" },
+          },
         ],
       },
     ],
@@ -280,7 +301,7 @@ export function createSeed(): DataState {
       {
         id: "d-sleep",
         clientId: "sanduni",
-        name: "Sleep notes.pdf",
+        name: "Sleep notes — early waking through October",
         note: "Two weeks of notes you wrote for yourself.",
         body: "Week of 6 October\nSlept about five hours. Woke at 3 and could not settle.\n\nWeek of 13 October\nBedtime nearer 11. Still waking once, but I got back to sleep.\n\nWhat I want to mention\nThe early waking is worse after a heavy work day. Coffee after 4pm seems to make it worse.",
         kind: "PDF",

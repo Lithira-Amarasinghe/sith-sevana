@@ -5,6 +5,7 @@ import {
   activeGrants,
   chatRuleCopy,
   clientCanSend,
+  documentVisibleToCounsellor,
   fileKind,
   fileSize,
   formatDay,
@@ -629,11 +630,13 @@ export function MessagesScreen() {
             const counsellor = data.counsellors.find((item) => item.id === thread.counsellorId);
             const last = thread.messages[thread.messages.length - 1];
             const title = user?.role === "counsellor" ? thread.clientName : counsellor?.name;
+            const attached = last?.attachment ? data.documents.find((doc) => doc.id === last.attachment?.docId) : undefined;
+            const preview = !last ? "No messages yet" : attached ? (last.text ? `${last.text} · ${attached.name}` : attached.name) : last.text;
             return (
               <button key={thread.id} className="list-card" onClick={() => push({ id: "chat", threadId: thread.id })}>
                 <div>
                   <strong>{title}</strong>
-                  <span>{last ? last.text : "No messages yet"}</span>
+                  <span className="clip">{preview}</span>
                 </div>
               </button>
             );
@@ -648,11 +651,21 @@ export function ChatScreen({ threadId }: { threadId: string }) {
   const { data, user, sendMessage } = useStore();
   const { pop } = useNav();
   const [text, setText] = useState("");
+  const [attachId, setAttachId] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [readingId, setReadingId] = useState<string | null>(null);
   const active = data.threads.find((item) => item.id === threadId);
   const counsellor = data.counsellors.find((item) => item.id === active?.counsellorId);
   const from = user?.role === "counsellor" ? "counsellor" : "client";
   const gate = active ? clientCanSend(active, data.bookings, data.settings) : { ok: false, reason: "" };
   const allowed = from === "counsellor" || gate.ok;
+  const attachable = data.documents.filter((doc) => {
+    if (!active) return false;
+    if (from === "client") return doc.clientId === active.clientId;
+    return doc.clientId === active.clientId && documentVisibleToCounsellor(doc, active.counsellorId);
+  });
+  const attached = attachable.find((doc) => doc.id === attachId) ?? data.documents.find((doc) => doc.id === attachId);
+  const reading = data.documents.find((doc) => doc.id === readingId) ?? null;
 
   if (!active || !counsellor) {
     return (
@@ -665,44 +678,131 @@ export function ChatScreen({ threadId }: { threadId: string }) {
     );
   }
 
+  const canOpen = (docId: string) => {
+    const doc = data.documents.find((item) => item.id === docId);
+    if (!doc) return false;
+    if (from === "client") return doc.clientId === active.clientId;
+    return documentVisibleToCounsellor(doc, active.counsellorId);
+  };
+
   return (
-    <Screen
-      footer={
-        <form
-          className="composer"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!allowed || !text.trim()) return;
-            sendMessage(active.id, from, text.trim());
-            setText("");
-          }}
-        >
-          <p>{chatRuleCopy(active.ruleAtOpen)}</p>
-          {!allowed && <p className="error">{gate.reason}</p>}
-          <div className="composer-row">
-            <input value={text} onChange={(event) => setText(event.target.value)} placeholder={allowed ? "Write a message" : "Sending is paused"} disabled={!allowed} />
-            <Button disabled={!allowed || !text.trim()} type="submit">
-              Send
+    <>
+      <Screen
+        footer={
+          <form
+            className="composer"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!allowed || (!text.trim() && !attachId)) return;
+              sendMessage(active.id, from, text.trim(), attachId ?? undefined);
+              setText("");
+              setAttachId(null);
+            }}
+          >
+            <p>{chatRuleCopy(active.ruleAtOpen)}</p>
+            {!allowed && <p className="error">{gate.reason}</p>}
+            {attached && (
+              <div className="attach-chip">
+                <Icon name="file" size={16} />
+                <span>{attached.name}</span>
+                <button type="button" aria-label="Remove attachment" onClick={() => setAttachId(null)}>
+                  <Icon name="close" size={16} />
+                </button>
+              </div>
+            )}
+            <div className="composer-row">
+              <button type="button" className="icon-btn" aria-label="Attach a document" disabled={!allowed} onClick={() => setPicking(true)}>
+                <Icon name="clip" size={18} />
+              </button>
+              <input value={text} onChange={(event) => setText(event.target.value)} placeholder={allowed ? "Write a message" : "Sending is paused"} disabled={!allowed} />
+              <Button disabled={!allowed || (!text.trim() && !attachId)} type="submit">
+                Send
+              </Button>
+            </div>
+          </form>
+        }
+      >
+        <div className="pad">
+          <button className="back" onClick={pop}>
+            <Icon name="back" size={18} /> Messages
+          </button>
+          <h1 className="display name-title" title={from === "counsellor" ? active.clientName : counsellor.name}>
+            {from === "counsellor" ? active.clientName : counsellor.name}
+          </h1>
+          <div className="thread">
+            {active.messages.map((message) => {
+              const doc = message.attachment ? data.documents.find((item) => item.id === message.attachment?.docId) : undefined;
+              return (
+                <div key={message.id} className={message.from === from ? "bubble mine" : "bubble"}>
+                  {message.text && <p>{message.text}</p>}
+                  {message.attachment && (
+                    <button type="button" className="bubble-file" onClick={() => setReadingId(message.attachment?.docId ?? null)}>
+                      <Icon name="file" size={18} />
+                      <span>{doc?.name ?? "Document"}</span>
+                    </button>
+                  )}
+                  <time>{formatTime(message.at)}</time>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Screen>
+      {picking && (
+        <div className="overlay" onClick={() => setPicking(false)}>
+          <div className="sheet" onClick={(event) => event.stopPropagation()}>
+            <h3>Attach a document</h3>
+            <p className="fine">
+              {from === "client"
+                ? "A private file is shared for viewing until you end that access. A file they can already open keeps its current access."
+                : "Only files this client has already shared with you."}
+            </p>
+            {attachable.length === 0 && (
+              <p className="quiet">{from === "client" ? "Add a file in Documents first." : "Nothing shared with you yet."}</p>
+            )}
+            <div className="stack">
+              {attachable.map((doc) => (
+                <button
+                  key={doc.id}
+                  type="button"
+                  className="file-row"
+                  onClick={() => {
+                    setAttachId(doc.id);
+                    setPicking(false);
+                  }}
+                >
+                  <span className="file-mark">{doc.kind}</span>
+                  <span>
+                    <strong>{doc.name}</strong>
+                    <em>{doc.sizeLabel}</em>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <Button tone="ghost" onClick={() => setPicking(false)}>
+              Cancel
             </Button>
           </div>
-        </form>
-      }
-    >
-      <div className="pad">
-        <button className="back" onClick={pop}>
-          <Icon name="back" size={18} /> Messages
-        </button>
-        <h1 className="display">{from === "counsellor" ? active.clientName : counsellor.name}</h1>
-        <div className="thread">
-          {active.messages.map((message) => (
-            <p key={message.id} className={message.from === from ? "bubble mine" : "bubble"}>
-              {message.text}
-              <time>{formatTime(message.at)}</time>
-            </p>
-          ))}
         </div>
-      </div>
-    </Screen>
+      )}
+      {reading && (
+        <div className="overlay" onClick={() => setReadingId(null)}>
+          <div className="sheet" onClick={(event) => event.stopPropagation()}>
+            <h3 className="name-title" title={reading.name}>
+              {reading.name}
+            </h3>
+            {canOpen(reading.id) ? (
+              <DocumentReader doc={reading} />
+            ) : (
+              <p className="quiet">Access ended. This file is no longer open to you.</p>
+            )}
+            <Button tone="ghost" onClick={() => setReadingId(null)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -879,26 +979,43 @@ export function DocumentsScreen() {
         {open && (
           <>
             <p className="eyebrow">{open.kind}</p>
-            {draftName === null ? (
-              <div className="name-row">
-                <h1 className="display">{open.name}</h1>
-                <Button tone="quiet" onClick={() => setDraftName(open.name)}>
-                  Edit name
-                </Button>
-              </div>
-            ) : (
-              <div className="name-row">
-                <Field label="Name in your documents" value={draftName} onChange={(event) => setDraftName(event.target.value)} />
-                <Button
-                  onClick={() => {
-                    renameDocument(open.id, draftName);
-                    setDraftName(null);
-                  }}
-                >
-                  Save name
-                </Button>
-              </div>
-            )}
+            <div className="name-row">
+              {draftName === null ? (
+                <>
+                  <h1 className="display name-title" title={open.name}>
+                    {open.name}
+                  </h1>
+                  <button type="button" className="icon-btn" aria-label="Edit name" onClick={() => setDraftName(open.name)}>
+                    <Icon name="edit" size={18} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <input
+                    className="name-input"
+                    aria-label="Name in your documents"
+                    value={draftName}
+                    autoFocus
+                    onChange={(event) => setDraftName(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    aria-label="Save name"
+                    disabled={!draftName.trim()}
+                    onClick={() => {
+                      renameDocument(open.id, draftName);
+                      setDraftName(null);
+                    }}
+                  >
+                    <Icon name="check" size={18} />
+                  </button>
+                  <button type="button" className="icon-btn ghost" aria-label="Cancel" onClick={() => setDraftName(null)}>
+                    <Icon name="close" size={18} />
+                  </button>
+                </>
+              )}
+            </div>
             <DocumentReader doc={open} />
             <p>
               {open.sizeLabel} · added {formatWhen(open.addedAt)}

@@ -160,7 +160,7 @@ export const notes: Record<ScreenId, { title: string; intent: string; ask: strin
       "Starting rule: message any time after the client chooses the counsellor. Is that what you want?",
       "If staff later change the rule, should open threads stay on the old rule?",
       "May the counsellor reply even when the client is not allowed to send?",
-      "No attachments in version 1. Files go through Documents instead. Agree?",
+      "Sending a document in the conversation grants view access until the client ends it, and only if that counsellor cannot already open the file. Is that the right grant?",
     ],
   },
   documents: {

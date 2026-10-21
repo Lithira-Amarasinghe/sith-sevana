@@ -22,7 +22,9 @@ export type IconName =
   | "lock"
   | "settings"
   | "plus"
-  | "close";
+  | "close"
+  | "edit"
+  | "clip";
 
 export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
   const common = {
@@ -115,6 +117,13 @@ export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
     ),
     plus: <path d="M12 5v14M5 12h14" />,
     close: <path d="m6 6 12 12M18 6 6 18" />,
+    edit: (
+      <>
+        <path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17z" />
+        <path d="m13.5 6.5 3 3" />
+      </>
+    ),
+    clip: <path d="M8.5 12.5 15 6a3.2 3.2 0 0 1 4.5 4.5l-8.2 8.2a4.4 4.4 0 0 1-6.2-6.2l7.4-7.4" />,
   };
   return <svg {...common}>{path[name]}</svg>;
 }

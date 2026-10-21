@@ -77,6 +77,7 @@ export type ChatMessage = {
   from: "client" | "counsellor";
   text: string;
   at: string;
+  attachment?: { docId: string };
 };
 
 export type Thread = {
